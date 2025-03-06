@@ -1,0 +1,20 @@
+# Composer
+vendor/
+composer.lock
+
+# WordPress
+wp-config.php
+
+# Sensitive files
+*.log
+*.env
+
+# IDE files
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Exclude sensitive configuration
+gemini_api_key.txt
