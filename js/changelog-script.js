@@ -1,70 +1,69 @@
 jQuery(document).ready(function($) {
+
     // Preview Changelog Button
+
     $('#preview-changelog').on('click', function() {
+
         $('#changelog-preview').html('Loading...');
+
         $('#ai-summary').hide();
+
         
+
         $.ajax({
             url: changelogChecker.ajax_url,
-            type: 'GET',
+            type: 'POST',
             data: {
                 action: 'preview_fetch_changelog',
-                security: changelogChecker.nonce,
-                url: $('#changelog-url').val()
+                security: changelogChecker.nonce
             },
             success: function(response) {
-                console.log('Full AJAX Response:', response);
-                
                 if (response.success) {
-                    // Always show a success message
-                    $('#changelog-preview').html(
-                        '<div class="notice notice-success">' +
-                        '<p>Changelog successfully fetched and processed!</p>' +
-                        '</div>'
-                    );
-                    
-                    // Handle AI summary
-                    if (response.data.ai_summary) {
-                        displayAiSummary(response.data.ai_summary);
+                    var previewContainer = $('#changelog-preview');
+                    previewContainer.empty(); // Clear previous results
+        
+                    // Check if results exist
+                    if (response.data.results && response.data.results.length > 0) {
+                        // Iterate through all results
+                        response.data.results.forEach(function(result, index) {
+                            // Create a section for each changelog
+                            var resultHtml = '<div class="changelog-result">';
+                            
+                            // Add URL
+                            resultHtml += '<h2>Changelog #' + (index + 1) + ': ' + 
+                                          (result.url ? result.url : 'Unknown URL') + '</h2>';
+                            
+                            // Check if fetch was successful
+                            if (result.success) {
+                                resultHtml += '<p>Changelog successfully fetched</p>';
+                                resultHtml += result.ai_summary || 'No summary available';
+                            } else {
+                                // Handle error case
+                                resultHtml += '<p class="error">Failed to fetch: ' + 
+                                              (result.message || 'Unknown error') + '</p>';
+                            }
+                            
+                            resultHtml += '</div>';
+                            
+                            previewContainer.append(resultHtml);
+                        });
                     } else {
-                        displayAiSummary(null, 'No AI summary generated');
+                        previewContainer.html('<p>No changelog results found.</p>');
                     }
                 } else {
-                    // Handle error messages
-                    var errorMessage = response.data && response.data.message 
-                        ? response.data.message 
-                        : 'Unknown error occurred';
-                    
-                    $('#changelog-preview').html(
-                        '<div class="notice notice-error"><p>Error: ' + 
-                        errorMessage + '</p></div>'
-                    );
+                    $('#changelog-preview').html('<p>Error: ' + response.data.message + '</p>');
                 }
             },
-            error: function(jqXHR, textStatus, errorThrown) {
-                // Error handling
-                const errorDetails = {
-                    status: jqXHR.status,
-                    statusText: jqXHR.statusText,
-                    responseText: jqXHR.responseText,
-                    textStatus: textStatus,
-                    errorThrown: errorThrown
-                };
-                
-                console.error('AJAX Error Details:', errorDetails);
-                
-                $('#changelog-preview').html(
-                    '<div class="notice notice-error">' +
-                    '<p>Ajax request failed: ' + textStatus + '</p>' +
-                    '<p>Error: ' + errorThrown + '</p>' +
-                    '<p>Status: ' + jqXHR.status + ' ' + jqXHR.statusText + '</p>' +
-                    '</div>'
-                );
-                
-                $('#ai-summary').hide();
+            error: function() {
+                $('#changelog-preview').html('<p>An error occurred while fetching changelogs.</p>');
             }
         });
+
     });
+
+    // Rest of the script remains the same...
+
+
 
     // Send Test Email Button
     $('#send-test-email').on('click', function() {

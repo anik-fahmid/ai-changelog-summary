@@ -12,6 +12,7 @@ if (!defined('ABSPATH')) {
 }
 
 class ChangelogChecker {
+    private $max_free_urls = 2; //Comment
     private $option_group = 'changelog-checker-settings';
         // Add error logging function here
         private function log_error($message, $data = []) {
@@ -45,6 +46,8 @@ class ChangelogChecker {
         }
         
         add_action('changelog_weekly_email', [$this, 'send_changelog_email']);
+            // Clear old summaries immediately
+        add_action('init', [$this, 'clear_old_changelog_summaries']);
         }
 
         public function handle_test_email() {
@@ -55,13 +58,13 @@ class ChangelogChecker {
                 return;
             }
         
-            $url = get_option('changelog_url');
+            $urls = get_option('changelog_urls', []);
             $email = get_option('notification_email', get_option('admin_email'));
             $api_key = get_option('gemini_api_key');
             
             // Check required settings
-            if (empty($url)) {
-                wp_send_json_error(['message' => 'Please configure changelog URL first']);
+            if (empty($urls)) {
+                wp_send_json_error(['message' => 'Please configure at least one changelog URL']);
                 return;
             }
             if (empty($email)) {
@@ -73,15 +76,51 @@ class ChangelogChecker {
                 return;
             }
         
-            // Fetch and process changelog
-            $result = $this->process_changelog($url);
-            
-            if ($result['success'] && isset($result['ai_summary'])) {
-                $subject = 'Changelog AI Summary';
+            // Process all URLs
+            $all_summaries = [];
+            $error_urls = [];
+        
+            foreach ($urls as $url) {
+                if (empty($url)) continue;
+        
+                // Fetch and process changelog
+                $result = $this->process_changelog($url);
                 
-                // Simple email with just the AI summary
+                if ($result['success'] && isset($result['ai_summary'])) {
+                    $all_summaries[] = [
+                        'url' => $url,
+                        'summary' => $result['ai_summary']
+                    ];
+                } else {
+                    $error_urls[] = $url;
+                }
+            }
+        
+            // Prepare email content
+            if (!empty($all_summaries)) {
+                $subject = 'Changelog AI Summaries - Test Email';
+                
                 $message = '<html><body>';
-                $message .= $result['ai_summary'];
+                $message .= '<h1>Changelog AI Summaries</h1>';
+                
+                foreach ($all_summaries as $index => $changelog) {
+                    $message .= '<div style="margin-bottom: 20px;">';
+                    $message .= '<h2>Changelog #' . ($index + 1) . ': ' . esc_html($changelog['url']) . '</h2>';
+                    $message .= $changelog['summary'];
+                    $message .= '</div>';
+                }
+                
+                // Add error information if any URLs failed
+                if (!empty($error_urls)) {
+                    $message .= '<h2>Errors</h2>';
+                    $message .= '<p>Failed to process the following URLs:</p>';
+                    $message .= '<ul>';
+                    foreach ($error_urls as $error_url) {
+                        $message .= '<li>' . esc_html($error_url) . '</li>';
+                    }
+                    $message .= '</ul>';
+                }
+                
                 $message .= '</body></html>';
                 
                 $headers = array(
@@ -93,7 +132,9 @@ class ChangelogChecker {
                 
                 if ($sent) {
                     wp_send_json_success([
-                        'message' => 'AI summary sent successfully to ' . $email
+                        'message' => 'AI summaries sent successfully to ' . $email,
+                        'summaries_count' => count($all_summaries),
+                        'errors_count' => count($error_urls)
                     ]);
                 } else {
                     wp_send_json_error([
@@ -102,8 +143,8 @@ class ChangelogChecker {
                 }
             } else {
                 wp_send_json_error([
-                    'message' => 'Failed to generate AI summary',
-                    'error' => $result['error'] ?? 'Unknown error'
+                    'message' => 'No AI summaries could be generated',
+                    'error_urls' => $error_urls
                 ]);
             }
         }
@@ -149,33 +190,44 @@ class ChangelogChecker {
     }
 
     public function init_settings() {
-        register_setting($this->option_group, 'changelog_url', [
-            'type' => 'string',
-            'sanitize_callback' => 'esc_url_raw'
+        // Register changelog URLs setting
+        register_setting($this->option_group, 'changelog_urls', [
+            'type' => 'array',
+            'sanitize_callback' => [$this, 'sanitize_changelog_urls'],
+            'show_in_rest' => false //Comment
         ]);
-
+    
+        // Register Gemini API key setting
         register_setting($this->option_group, 'gemini_api_key', [
             'type' => 'string',
             'sanitize_callback' => 'sanitize_text_field',
             'validate_callback' => [$this, 'validate_settings']
         ]);
+    
+        // Register notification email setting
         register_setting($this->option_group, 'notification_email', [
             'type' => 'string',
             'sanitize_callback' => 'sanitize_email'
         ]);
+    
+        // Add settings section
         add_settings_section(
             'changelog_settings_section',
             'Changelog Settings',
             [$this, 'settings_section_callback'],
             'changelog-checker'
         );
+    
+        // Add multiple changelog URLs field
         add_settings_field(
-            'changelog_url',
-            'Changelog URL',
-            [$this, 'render_url_field'],
+            'changelog_urls',
+            'Changelog URLs',
+            [$this, 'render_urls_field'],
             'changelog-checker',
             'changelog_settings_section'
         );
+    
+        // Add Gemini API key field
         add_settings_field(
             'gemini_api_key',
             'Gemini API Key',
@@ -183,6 +235,8 @@ class ChangelogChecker {
             'changelog-checker',
             'changelog_settings_section'
         );
+    
+        // Add notification email field
         add_settings_field(
             'notification_email',
             'Notification Email',
@@ -262,20 +316,45 @@ class ChangelogChecker {
         echo '<p>Configure your changelog source and Gemini integration.</p>';
     }
 
-    public function render_url_field() {
-        $url = get_option('changelog_url', '');
-        ?>
-        <input 
-            type="url" 
-            name="changelog_url" 
-            id="changelog-url" 
-            value="<?php echo esc_attr($url); ?>" 
-            class="regular-text"
-            placeholder="https://example.com/changelog.json"
-        >
-        <?php
+    public function sanitize_changelog_urls($input) { //Comment (whole)
+        $sanitized_urls = [];
+        
+        // Enforce free version limit
+        $input = array_slice($input, 0, $this->max_free_urls);
+
+        foreach ($input as $url) {
+            $sanitized_url = esc_url_raw(trim($url));
+            if (!empty($sanitized_url)) {
+                $sanitized_urls[] = $sanitized_url;
+            }
+        }
+
+        return $sanitized_urls;
     }
 
+
+    public function render_urls_field() { //Comment (Whole)
+        $urls = get_option('changelog_urls', []);
+        // Pad the array to always show 2 input fields
+        $urls = array_pad($urls, $this->max_free_urls, '');
+        ?>
+        <div id="changelog-urls-container">
+            <?php for ($i = 0; $i < $this->max_free_urls; $i++): ?>
+                <input 
+                    type="url" 
+                    name="changelog_urls[<?php echo $i; ?>]" 
+                    value="<?php echo esc_attr($urls[$i]); ?>" 
+                    class="regular-text"
+                    placeholder="Enter changelog URL #<?php echo $i + 1; ?>"
+                    style="margin-bottom: 10px;"
+                >
+            <?php endfor; ?>
+        </div>
+        <p class="description">
+            Enter up to <?php echo $this->max_free_urls; ?> changelog URLs.
+        </p>
+        <?php
+    }
     public function render_api_key_field() {
             $api_key = get_option('gemini_api_key', '');
             ?>
@@ -455,36 +534,100 @@ class ChangelogChecker {
         </style>';
     }
 
+    public function handle_changelog_fetch() { //Comment (whole)
 
-public function handle_changelog_fetch() {
-    check_ajax_referer('changelog_nonce', 'security');
+        check_ajax_referer('changelog_nonce', 'security');
     
-    $url = isset($_GET['url']) ? esc_url_raw($_GET['url']) : '';
-    if (empty($url)) {
-        wp_send_json_error(['message' => 'No URL provided']);
-        return;
-    }
+        $urls = get_option('changelog_urls', []);
     
-    $result = $this->process_changelog($url);
+        // Enforce URL limit
     
-    if ($result['success']) {
+        $urls = array_slice($urls, 0, $this->max_free_urls);
+    
+        if (empty($urls)) {
+    
+            wp_send_json_error(['message' => 'No URLs configured']);
+    
+            return;
+    
+        }
+    
+        $results = [];
+    
+        foreach ($urls as $url) {
+    
+            if (empty($url)) continue;
+    
+            $result = $this->process_changelog($url);
+    
+            if ($result['success']) {
+    
+                $results[] = [
+    
+                    'url' => $url,
+    
+                    'success' => true,
+    
+                    'message' => 'Changelog successfully fetched',
+    
+                    'content' => $result['content'] ?? '',
+    
+                    'ai_summary' => $result['ai_summary'] ?? ''
+    
+                ];
+    
+            } else {
+    
+                $results[] = [
+    
+                    'url' => $url,
+    
+                    'success' => false,
+    
+                    'message' => $result['message'] ?? 'Failed to fetch changelog',
+    
+                    'error' => $result
+    
+                ];
+    
+            }
+    
+        }
+    
         wp_send_json_success([
-            'message' => 'Changelog successfully fetched and processed!',
-            'ai_summary' => wp_kses_post($result['ai_summary']),
-            'content' => $result['content'] // Add this line to send the parsed content
+    
+            'message' => 'Processed ' . count($results) . ' changelogs',
+    
+            'results' => $results
+    
         ]);
-    } else {
-        wp_send_json_error([
-            'message' => $result['message'] ?? 'Failed to fetch changelog'
-        ]);
+    
     }
-}
+    
+
+// Modify handle_changelog_fetch to support multiple URLs
+
+
 // Add the process_changelog function here
 public function process_changelog($url) {
+    // First, check if we have a recent cached summary
+    $stored_summaries = get_option('changelog_summaries', []);
+    $cached_summary = isset($stored_summaries[$url]) ? $stored_summaries[$url] : null;
+    
+    // Check if cached summary is less than 24 hours old
+    if ($cached_summary && 
+        (current_time('timestamp') - $cached_summary['timestamp']) < (24 * HOUR_IN_SECONDS)) {
+        return [
+            'success' => true,
+            'content' => 'Cached content',
+            'ai_summary' => $cached_summary['summary']
+        ];
+    }
+    
     // Fetch the changelog
     $response = wp_remote_get($url, [
-        'timeout' => 30,  // Increased timeout
-        'sslverify' => false  // Optional: disable SSL verification if needed
+        'timeout' => 30,
+        'sslverify' => false
     ]);
     
     if (is_wp_error($response)) {
@@ -494,50 +637,39 @@ public function process_changelog($url) {
         ];
     }
     
-    // Check response code
-    $status_code = wp_remote_retrieve_response_code($response);
-    if ($status_code !== 200) {
-        return [
-            'success' => false,
-            'message' => 'HTTP Error: ' . $status_code
-        ];
-    }
-    
+    // Get the body of the response
     $body = wp_remote_retrieve_body($response);
     
-    // Log raw body for debugging
-    error_log('Changelog Raw Body: ' . substr($body, 0, 1000));
-    
-    try {
-        // Try parsing JSON first
-        $json_data = json_decode($body, true);
-        if (json_last_error() === JSON_ERROR_NONE && !empty($json_data)) {
-            $parsed_content = $this->format_changelog($json_data);
-        } else {
-            // If not JSON, try HTML parsing
-            $parsed_content = $this->parse_html_changelog($body);
-        }
-        
-        // Get AI summary
-        $ai_result = $this->summarize_with_ai($parsed_content);
-        
-        return [
-            'success' => true,
-            'content' => $parsed_content,
-            'ai_summary' => $ai_result['summary'] ?? 'No AI summary generated',
-            'error' => $ai_result['error'] ?? null
-        ];
-    } catch (Exception $e) {
-        $this->log_error('Changelog processing failed', [
-            'error' => $e->getMessage(),
-            'url' => $url
-        ]);
-        
+    if (empty($body)) {
         return [
             'success' => false,
-            'message' => 'Failed to process changelog: ' . $e->getMessage()
+            'message' => 'Empty changelog content'
         ];
     }
+    
+    // Parse the HTML changelog
+    $changelog_content = $this->parse_html_changelog($body);
+    
+    // Generate AI summary
+    $ai_result = $this->summarize_with_ai($changelog_content);
+    
+    // Check if AI summary generation was successful
+    if (!$ai_result['success']) {
+        return [
+            'success' => false,
+            'message' => $ai_result['error'] ?? 'Failed to generate AI summary',
+            'error_details' => $ai_result
+        ];
+    }
+    
+    // Store the summary
+    $this->store_changelog_summary($url, $ai_result['summary']);
+    
+    return [
+        'success' => true,
+        'content' => $changelog_content,
+        'ai_summary' => $ai_result['summary']
+    ];
 }
 
 // Helper methods (add these if not already present)
@@ -609,6 +741,14 @@ private function parse_html_changelog($html) {
     
     return $changelog_content ?: 'Success.';
 }
+private function store_changelog_summary($url, $summary) {
+    $stored_summaries = get_option('changelog_summaries', []);
+    $stored_summaries[$url] = [
+        'summary' => $summary,
+        'timestamp' => current_time('timestamp')
+    ];
+    update_option('changelog_summaries', $stored_summaries);
+}
 
 private function format_ai_response($text) {
     // Replace text representations with actual HTML tags
@@ -638,32 +778,39 @@ private function summarize_with_ai($content) {
 
     // Updated API endpoint URL
     $url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' . $api_key;
-
+    
     $data = [
         'contents' => [
             [
                 'parts' => [
                     [
-                        'text' => "Provide an analysis section with:
-                        <h3>Product Name: What is the product name?</h3>, 
-                        <h4>Latest Core Version: What is the latest core/free version number, and the release date?</h4>
-                        <h4>Release Date: What is the release date for the latest core version?</h4>
-                        Core Release Summary: Summarize the latest core version release notes in few sentences (Highlight Key Changes, Notable Improvements, Impact Assessment, Breaking Changes).
-                        <h4>Latest Pro Version: What is the latest pro/premium version number, and the release date?</h4>
-                        <h4>Release Date: What is the release date for the latest pro version?</h4>
-                        Pro Release Summary: Summarize the latest pro version release notes in few sentences (Highlight Key Changes, Notable Improvements, Impact Assessment, Breaking Changes)." . $content
+                        'text' => "Carefully analyze the following content. Your task is to:
+
+                           - Provide an analysis section with:
+                             <h3>Product Name: What is the product name?</h3>
+                             <h4>Latest Core Version: What is the latest core/free version number, and the release date?</h4>
+                             <h4>Release Date: What is the release date for the latest core version?</h4>
+                             <h4>Core Release Summary:</h4> Summarize the latest core version release notes in few sentences (Highlight Key Changes, Notable Improvements, Impact Assessment, Breaking Changes).
+                             <h4>Latest Pro Version: What is the latest pro/premium version number, and the release date?</h4>
+                             <h4>Release Date: What is the release date for the latest pro version?</h4>
+                             <h4>Pro Release Summary:</h4> Summarize the latest pro version release notes in few sentences.
+                        
+                        If it is NOT a changelog:
+                           Respond with a clear message: <h4>NOT A CHANGELOG: This page does not appear to be a valid changelog. It may be a generic page, documentation, or unrelated content.</h4>
+
+                        Analyze this content carefully and provide a precise response:" . $content
                     ]
                 ]
             ]
         ],
         'generationConfig' => [
-            'temperature' => 0.7,
+            'temperature' => 0.2,  // Lower temperature for more precise responses
             'topK' => 40,
             'topP' => 0.95,
             'maxOutputTokens' => 1024,
         ]
     ];
-
+    
     $args = [
         'headers' => [
             'Content-Type' => 'application/json'
@@ -672,29 +819,26 @@ private function summarize_with_ai($content) {
         'method' => 'POST',
         'timeout' => 30
     ];
-
+    
     $response = wp_remote_post($url, $args);
-
+    
     if (is_wp_error($response)) {
         return [
             'error' => 'API request failed: ' . $response->get_error_message(),
             'summary' => null
         ];
     }
-
+    
     $body = wp_remote_retrieve_body($response);
     $result = json_decode($body, true);
-
+    
     if (json_last_error() !== JSON_ERROR_NONE) {
         return [
             'error' => 'Failed to parse API response',
             'summary' => null
         ];
     }
-
-    // Add error logging to see the response structure
-    error_log('Gemini API Response: ' . print_r($result, true));
-
+    
     // Check for API error response
     if (isset($result['error'])) {
         return [
@@ -702,25 +846,33 @@ private function summarize_with_ai($content) {
             'summary' => null
         ];
     }
+    
     try {
         $summary = $result['candidates'][0]['content']['parts'][0]['text'];
+        
+        // Check if the response indicates it's not a changelog
+        if (strpos($summary, 'NOT A CHANGELOG:') !== false) {
+            return [
+                'success' => false,
+                'error' => $summary,
+                'summary' => null
+            ];
+        }
+        
         $formatted_summary = $this->format_ai_response($summary);
+        
         return [
+            'success' => true,
             'error' => null,
             'summary' => $formatted_summary
         ];
     } catch (Exception $e) {
-        $this->log_error('AI Summary extraction failed', [
-            'error' => $e->getMessage(),
-            'response' => $result
-        ]);
         return [
-            'error' => 'Failed to extract summary from API response: ' . $e->getMessage(),
+            'success' => false,
+            'error' => 'Failed to extract summary: ' . $e->getMessage(),
             'summary' => null
         ];
     }
-
-    
 }
 
     /**
@@ -746,23 +898,69 @@ private function summarize_with_ai($content) {
      * Sends the weekly changelog email
      */
     public function send_changelog_email() {
-        $url = get_option('changelog_url');
+        $urls = get_option('changelog_urls', []);
         $email = get_option('notification_email', get_option('admin_email'));
         $api_key = get_option('gemini_api_key');
         
-        if (empty($url) || empty($email) || empty($api_key)) {
+        if (empty($urls) || empty($email) || empty($api_key)) {
             $this->log_error('Missing required settings for changelog email');
             return;
         }
         
-        $result = $this->process_changelog($url);
+        $all_summaries = [];
+        $error_urls = [];
         
-        if ($result['success'] && isset($result['ai_summary'])) {
-            $subject = 'Weekly Changelog AI Summary';
+        // Process each URL
+        foreach ($urls as $url) {
+            if (empty($url)) continue;
             
-            // Simple email with just the AI summary
+            // Log the URL being processed
+            error_log('Processing Changelog URL: ' . $url);
+            
+            $result = $this->process_changelog($url);
+            
+            if ($result['success'] && isset($result['ai_summary'])) {
+                $all_summaries[] = [
+                    'url' => $url,
+                    'summary' => $result['ai_summary']
+                ];
+                
+                // Log successful processing
+                error_log('Successfully processed changelog for: ' . $url);
+            } else {
+                $error_urls[] = $url;
+                $this->log_error('Failed to generate AI summary for URL', [
+                    'url' => $url,
+                    'error' => $result['error'] ?? 'Unknown error'
+                ]);
+            }
+        }
+        
+        // Combine summaries if we have any
+        if (!empty($all_summaries)) {
+            $subject = 'Weekly Changelog AI Summaries';
+            
             $message = '<html><body>';
-            $message .= $result['ai_summary'];
+            $message .= '<h1>Weekly Changelog Summaries</h1>';
+            
+            foreach ($all_summaries as $index => $changelog) {
+                $message .= '<div style="margin-bottom: 20px;">';
+                $message .= '<h2>Changelog #' . ($index + 1) . ': ' . esc_html($changelog['url']) . '</h2>';
+                $message .= $changelog['summary'];
+                $message .= '</div>';
+            }
+            
+            // Add error information if any
+            if (!empty($error_urls)) {
+                $message .= '<h2>Errors</h2>';
+                $message .= '<p>Failed to process the following URLs:</p>';
+                $message .= '<ul>';
+                foreach ($error_urls as $error_url) {
+                    $message .= '<li>' . esc_html($error_url) . '</li>';
+                }
+                $message .= '</ul>';
+            }
+            
             $message .= '</body></html>';
             
             $headers = array(
@@ -777,25 +975,43 @@ private function summarize_with_ai($content) {
                     'email' => $email
                 ]);
             }
+            
+            // Log the entire process
+            error_log('Changelog Email Sent. Processed URLs: ' . count($all_summaries));
         } else {
-            $this->log_error('Failed to generate AI summary for email', [
-                'error' => $result['error'] ?? 'Unknown error'
-            ]);
+            error_log('No changelog summaries to send');
         }
     }
 
     /**
      * Cleanup on plugin deactivation
      */
-    public function deactivate() {
-        wp_clear_scheduled_hook('changelog_weekly_email');
+    public function clear_old_changelog_summaries() {
+        $stored_summaries = get_option('changelog_summaries', []);
+        $current_time = current_time('timestamp');
+        
+        // Remove summaries older than 7 days
+        foreach ($stored_summaries as $url => $summary) {
+            if (($current_time - $summary['timestamp']) > (7 * DAY_IN_SECONDS)) {
+                unset($stored_summaries[$url]);
+            }
+        }
+        
+        update_option('changelog_summaries', $stored_summaries);
     }
-
+        // Add this method near the end of the class, before the closing bracket
+    public function deactivate() {
+        // Clear scheduled hooks
+        wp_clear_scheduled_hook('changelog_weekly_email');
+        wp_clear_scheduled_hook('clear_old_changelog_summaries');
+        
+        // Delete stored options
+        delete_option('changelog_summaries');
+    }
 
 }
 
-
-// Replace with this
+// Add this after the class definition
 register_deactivation_hook(__FILE__, function() {
     $changelog_checker = new ChangelogChecker();
     $changelog_checker->deactivate();
