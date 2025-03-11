@@ -1,9 +1,11 @@
 <?php
 /*
-Plugin Name: Changelog Checker
-Description: Fetches and displays changelog updates with AI summarization
+Plugin Name: AI Changelog Summary
+Description: AI-powered changelog tracking and summarization
 Version: 1.1
 Author: Fahmid Hasan
+Author URI: https://fahmidsroadmap.com/
+Plugin URI: https://fahmidsroadmap.com/ai-changelog-summary/
 */
 
 // Prevent direct access
@@ -11,9 +13,9 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class ChangelogChecker {
+class AIChangelogSummary {
     private $max_free_urls = 2; //Comment
-    private $option_group = 'changelog-checker-settings';
+    private $option_group = 'ai-changelog-summary-settings';
         // Add error logging function here
         private function log_error($message, $data = []) {
             if (WP_DEBUG) {
@@ -181,10 +183,10 @@ class ChangelogChecker {
 
     public function add_plugin_page() {
         add_options_page(
-            'Changelog Checker',
-            'Changelog Checker',
+            'AI Changelog Summary',
+            'AI Changelog Summary',
             'manage_options',
-            'changelog-checker',
+            'ai-changelog-summary',
             [$this, 'render_settings_page']
         );
     }
@@ -471,12 +473,12 @@ class ChangelogChecker {
         }
 
     public function enqueue_scripts($hook) {
-        if ($hook !== 'settings_page_changelog-checker') return;
+            if ($hook !== 'settings_page_ai-changelog-summary') return;
 
         wp_enqueue_script('jquery');
         wp_enqueue_script('changelog-checker-script', plugin_dir_url(__FILE__) . 'js/changelog-script.js', ['jquery'], '1.0', true);
         
-        wp_localize_script('changelog-checker-script', 'changelogChecker', [
+        wp_localize_script('changelog-checker-script', 'AIChangelogSummary', [
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('changelog_nonce')
         ]);
@@ -1013,11 +1015,11 @@ private function summarize_with_ai($content) {
 
 // Add this after the class definition
 register_deactivation_hook(__FILE__, function() {
-    $changelog_checker = new ChangelogChecker();
+    $changelog_checker = new AIChangelogSummary();
     $changelog_checker->deactivate();
 });
 
 // Initialize the plugin
 add_action('plugins_loaded', function() {
-    new ChangelogChecker();
+    new AIChangelogSummary();
 });
