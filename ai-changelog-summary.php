@@ -1,185 +1,150 @@
 <?php
 /*
 Plugin Name: AI Changelog Summary
-Description: AI-powered changelog tracking and summarization
-Version: 1.1
+Description: AI-powered changelog tracking and summarization with multi-provider support
+Version: 2.0
 Author: Fahmid Hasan
 Author URI: https://fahmidsroadmap.com/
 Plugin URI: https://fahmidsroadmap.com/ai-changelog-summary/
 */
 
-// Prevent direct access
-if (!defined('ABSPATH')) {
+if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+define( 'AICS_VERSION', '2.0' );
+define( 'AICS_PATH', plugin_dir_path( __FILE__ ) );
+define( 'AICS_URL', plugin_dir_url( __FILE__ ) );
+
+require_once AICS_PATH . 'includes/class-content-extractor.php';
+require_once AICS_PATH . 'includes/class-ai-providers.php';
+require_once AICS_PATH . 'includes/class-email-template.php';
+
 class AIChangelogSummary {
-    private $max_free_urls = 2; //Comment
-    private $option_group = 'ai-changelog-summary-settings';
-        // Add error logging function here
-        private function log_error($message, $data = []) {
-            if (WP_DEBUG) {
-                error_log('Changelog Checker Error: ' . $message);
-                if (!empty($data)) {
-                    error_log('Additional data: ' . print_r($data, true));
-                }
+
+    private $max_free_urls = 2;
+    private $option_group  = 'ai-changelog-summary-settings';
+
+    private function get_max_urls() {
+        return apply_filters( 'aics_max_urls', $this->max_free_urls );
+    }
+
+    /* ───────────────────────── Logging ───────────────────────── */
+
+    private function log_error( $message, $data = [] ) {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( 'AICS Error: ' . $message );
+            if ( ! empty( $data ) ) {
+                error_log( 'AICS Data: ' . print_r( $data, true ) );
             }
         }
+    }
+
+    /* ───────────────────────── Constructor ───────────────────── */
 
     public function __construct() {
-        add_action('admin_menu', [$this, 'add_plugin_page']);
-        add_action('admin_init', [$this, 'init_settings']);
-        add_action('admin_enqueue_scripts', [$this, 'enqueue_scripts']);
-        add_action('wp_ajax_preview_fetch_changelog', [$this, 'handle_changelog_fetch']);
-        add_action('admin_head', [$this, 'add_inline_styles']);
-        add_action('wp_ajax_send_test_changelog_email', [$this, 'handle_test_email']);
-        add_action('wp_ajax_test_wp_mail', [$this, 'test_wp_mail']);
+        // Admin.
+        add_action( 'admin_menu', [ $this, 'add_plugin_page' ] );
+        add_action( 'admin_init', [ $this, 'init_settings' ] );
+        add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
+        add_action( 'admin_head', [ $this, 'add_inline_styles' ] );
 
+        // Dashboard widget.
+        add_action( 'wp_dashboard_setup', [ $this, 'add_dashboard_widget' ] );
 
-            // Setup cron
-        add_filter('cron_schedules', [$this, 'add_weekly_schedule']);
-        
-        if (!wp_next_scheduled('changelog_weekly_email')) {
+        // AJAX.
+        add_action( 'wp_ajax_preview_fetch_changelog', [ $this, 'handle_changelog_fetch' ] );
+        add_action( 'wp_ajax_send_test_changelog_email', [ $this, 'handle_test_email' ] );
+        add_action( 'wp_ajax_test_wp_mail', [ $this, 'test_wp_mail' ] );
+        add_action( 'wp_ajax_aics_force_fetch', [ $this, 'handle_force_fetch' ] );
+
+        // Cron.
+        add_filter( 'cron_schedules', [ $this, 'add_custom_schedules' ] );
+        $this->maybe_schedule_cron();
+        add_action( 'aics_changelog_email', [ $this, 'send_changelog_email' ] );
+
+        // Cleanup.
+        add_action( 'init', [ $this, 'clear_old_changelog_summaries' ] );
+
+        // Reschedule cron when frequency settings change.
+        add_action( 'update_option_aics_email_frequency', [ $this, 'reschedule_cron' ] );
+        add_action( 'update_option_aics_email_day', [ $this, 'reschedule_cron' ] );
+        add_action( 'update_option_aics_email_time', [ $this, 'reschedule_cron' ] );
+    }
+
+    /* ───────────────────────── Cron Schedules ───────────────── */
+
+    public function add_custom_schedules( $schedules ) {
+        $schedules['daily'] = [
+            'interval' => DAY_IN_SECONDS,
+            'display'  => 'Once Daily',
+        ];
+        $schedules['weekly'] = [
+            'interval' => 7 * DAY_IN_SECONDS,
+            'display'  => 'Once Weekly',
+        ];
+        $schedules['biweekly'] = [
+            'interval' => 14 * DAY_IN_SECONDS,
+            'display'  => 'Every Two Weeks',
+        ];
+        $schedules['monthly'] = [
+            'interval' => 30 * DAY_IN_SECONDS,
+            'display'  => 'Once Monthly',
+        ];
+        return apply_filters( 'aics_cron_schedules', $schedules );
+    }
+
+    private function maybe_schedule_cron() {
+        if ( ! wp_next_scheduled( 'aics_changelog_email' ) ) {
             wp_schedule_event(
-                $this->get_next_monday_8am(),
-                'weekly',
-                'changelog_weekly_email'
+                $this->get_next_scheduled_time(),
+                $this->get_frequency(),
+                'aics_changelog_email'
             );
         }
-        
-        add_action('changelog_weekly_email', [$this, 'send_changelog_email']);
-            // Clear old summaries immediately
-        add_action('init', [$this, 'clear_old_changelog_summaries']);
+    }
+
+    public function reschedule_cron() {
+        wp_clear_scheduled_hook( 'aics_changelog_email' );
+        wp_schedule_event(
+            $this->get_next_scheduled_time(),
+            $this->get_frequency(),
+            'aics_changelog_email'
+        );
+    }
+
+    private function get_frequency() {
+        return get_option( 'aics_email_frequency', 'weekly' );
+    }
+
+    private function get_next_scheduled_time() {
+        $day  = get_option( 'aics_email_day' );
+        $hour = (int) get_option( 'aics_email_time', 8 );
+        $freq = $this->get_frequency();
+
+        $valid_days = [ 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday' ];
+        if ( empty( $day ) || ! in_array( $day, $valid_days, true ) ) {
+            $day = 'monday';
         }
 
-        public function handle_test_email() {
-            check_ajax_referer('changelog_nonce', 'security');
-            
-            if (!current_user_can('manage_options')) {
-                wp_send_json_error(['message' => 'Permission denied']);
-                return;
+        $tz   = wp_timezone();
+        $now  = new DateTime( 'now', $tz );
+
+        if ( $freq === 'daily' ) {
+            $next = new DateTime( 'today', $tz );
+            $next->setTime( $hour, 0 );
+            if ( $next <= $now ) {
+                $next->modify( '+1 day' );
             }
-        
-            $urls = get_option('changelog_urls', []);
-            $email = get_option('notification_email', get_option('admin_email'));
-            $api_key = get_option('gemini_api_key');
-            
-            // Check required settings
-            if (empty($urls)) {
-                wp_send_json_error(['message' => 'Please configure at least one changelog URL']);
-                return;
-            }
-            if (empty($email)) {
-                wp_send_json_error(['message' => 'Please configure notification email first']);
-                return;
-            }
-            if (empty($api_key)) {
-                wp_send_json_error(['message' => 'Please configure Gemini API key first']);
-                return;
-            }
-        
-            // Process all URLs
-            $all_summaries = [];
-            $error_urls = [];
-        
-            foreach ($urls as $url) {
-                if (empty($url)) continue;
-        
-                // Fetch and process changelog
-                $result = $this->process_changelog($url);
-                
-                if ($result['success'] && isset($result['ai_summary'])) {
-                    $all_summaries[] = [
-                        'url' => $url,
-                        'summary' => $result['ai_summary']
-                    ];
-                } else {
-                    $error_urls[] = $url;
-                }
-            }
-        
-            // Prepare email content
-            if (!empty($all_summaries)) {
-                $subject = 'Changelog AI Summaries - Test Email';
-                
-                $message = '<html><body>';
-                $message .= '<h1>Changelog AI Summaries</h1>';
-                
-                foreach ($all_summaries as $index => $changelog) {
-                    $message .= '<div style="margin-bottom: 20px;">';
-                    $message .= '<h2>Changelog #' . ($index + 1) . ': ' . esc_html($changelog['url']) . '</h2>';
-                    $message .= $changelog['summary'];
-                    $message .= '</div>';
-                }
-                
-                // Add error information if any URLs failed
-                if (!empty($error_urls)) {
-                    $message .= '<h2>Errors</h2>';
-                    $message .= '<p>Failed to process the following URLs:</p>';
-                    $message .= '<ul>';
-                    foreach ($error_urls as $error_url) {
-                        $message .= '<li>' . esc_html($error_url) . '</li>';
-                    }
-                    $message .= '</ul>';
-                }
-                
-                $message .= '</body></html>';
-                
-                $headers = array(
-                    'Content-Type: text/html; charset=UTF-8',
-                    'From: WordPress <' . get_option('admin_email') . '>'
-                );
-                
-                $sent = wp_mail($email, $subject, $message, $headers);
-                
-                if ($sent) {
-                    wp_send_json_success([
-                        'message' => 'AI summaries sent successfully to ' . $email,
-                        'summaries_count' => count($all_summaries),
-                        'errors_count' => count($error_urls)
-                    ]);
-                } else {
-                    wp_send_json_error([
-                        'message' => 'Failed to send email'
-                    ]);
-                }
-            } else {
-                wp_send_json_error([
-                    'message' => 'No AI summaries could be generated',
-                    'error_urls' => $error_urls
-                ]);
-            }
+        } else {
+            $next = new DateTime( 'next ' . $day, $tz );
+            $next->setTime( $hour, 0 );
         }
 
-        public function test_wp_mail() {
-            check_ajax_referer('changelog_nonce', 'security');
-            
-            if (!current_user_can('manage_options')) {
-                wp_send_json_error(['message' => 'Permission denied']);
-                return;
-            }
-        
-            $email = get_option('notiffication_email', get_option('admin_email'));
-            $subject = 'Test Email from Changelog Checker';
-            $message = 'This is a test email to verify wp_mail is working.';
-            
-            $headers = array(
-                'Content-Type: text/html; charset=UTF-8',
-                'From: WordPress <' . get_option('admin_email') . '>'
-            );
-            
-            $sent = wp_mail($email, $subject, $message, $headers);
-            
-            if ($sent) {
-                wp_send_json_success([
-                    'message' => 'Basic test email sent successfully to ' . $email
-                ]);
-            } else {
-                wp_send_json_error([
-                    'message' => 'Failed to send test email. Please check your WordPress email configuration.'
-                ]);
-            }
-        }
+        return $next->getTimestamp();
+    }
+
+    /* ───────────────────────── Admin Menu ────────────────────── */
 
     public function add_plugin_page() {
         add_options_page(
@@ -187,839 +152,795 @@ class AIChangelogSummary {
             'AI Changelog Summary',
             'manage_options',
             'ai-changelog-summary',
-            [$this, 'render_settings_page']
+            [ $this, 'render_settings_page' ]
         );
     }
+
+    /* ───────────────────────── Settings Registration ─────────── */
 
     public function init_settings() {
-        // Register changelog URLs setting
-        register_setting($this->option_group, 'changelog_urls', [
-            'type' => 'array',
-            'sanitize_callback' => [$this, 'sanitize_changelog_urls'],
-            'show_in_rest' => false //Comment
-        ]);
-    
-        // Register Gemini API key setting
-        register_setting($this->option_group, 'gemini_api_key', [
-            'type' => 'string',
+        // Changelog URLs.
+        register_setting( $this->option_group, 'changelog_urls', [
+            'type'              => 'array',
+            'sanitize_callback' => [ $this, 'sanitize_changelog_urls' ],
+        ] );
+
+        // AI provider.
+        register_setting( $this->option_group, 'aics_ai_provider', [
+            'type'              => 'string',
             'sanitize_callback' => 'sanitize_text_field',
-            'validate_callback' => [$this, 'validate_settings']
-        ]);
-    
-        // Register notification email setting
-        register_setting($this->option_group, 'notification_email', [
-            'type' => 'string',
-            'sanitize_callback' => 'sanitize_email'
-        ]);
-    
-        // Add settings section
+            'default'           => 'gemini',
+        ] );
+
+        // API keys — one per provider.
+        register_setting( $this->option_group, 'gemini_api_key', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+        ] );
+        register_setting( $this->option_group, 'openai_api_key', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+        ] );
+        register_setting( $this->option_group, 'claude_api_key', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+        ] );
+
+        // Notification email.
+        register_setting( $this->option_group, 'notification_email', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_email',
+        ] );
+
+        // Schedule options.
+        register_setting( $this->option_group, 'aics_email_frequency', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default'           => 'weekly',
+        ] );
+        register_setting( $this->option_group, 'aics_email_day', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default'           => 'monday',
+        ] );
+        register_setting( $this->option_group, 'aics_email_time', [
+            'type'              => 'integer',
+            'sanitize_callback' => 'absint',
+            'default'           => 8,
+        ] );
+
+        // Settings section.
         add_settings_section(
-            'changelog_settings_section',
+            'aics_main_section',
             'Changelog Settings',
-            [$this, 'settings_section_callback'],
-            'changelog-checker'
+            function () {
+                echo '<p>Configure your changelog sources, AI provider, and notification schedule.</p>';
+            },
+            'ai-changelog-summary'
         );
-    
-        // Add multiple changelog URLs field
-        add_settings_field(
-            'changelog_urls',
-            'Changelog URLs',
-            [$this, 'render_urls_field'],
-            'changelog-checker',
-            'changelog_settings_section'
-        );
-    
-        // Add Gemini API key field
-        add_settings_field(
-            'gemini_api_key',
-            'Gemini API Key',
-            [$this, 'render_api_key_field'],
-            'changelog-checker',
-            'changelog_settings_section'
-        );
-    
-        // Add notification email field
-        add_settings_field(
-            'notification_email',
-            'Notification Email',
-            [$this, 'render_email_field'],
-            'changelog-checker',
-            'changelog_settings_section'
-        );
+
+        $this->add_settings_fields();
     }
 
-    public function validate_settings($input) {
-        $new_input = array();
-        
-        if(isset($input['gemini_api_key'])) {
-            $new_input['gemini_api_key'] = sanitize_text_field($input['gemini_api_key']);
-            
-            // Optionally verify the API key works
-            $test_result = $this->test_gemini_api_key($new_input['gemini_api_key']);
-            if(!$test_result['success']) {
-                add_settings_error(
-                    'gemini_api_key',
-                    'invalid_api_key',
-                    'Invalid Gemini API key: ' . $test_result['message']
-                );
-            }
-        }
-        if(isset($input['changelog_url'])) {
-            $new_input['changelog_url'] = esc_url_raw($input['changelog_url']);
-        }
-        
-        return $new_input;
-    }
-    
-    private function test_gemini_api_key($api_key) {
-        // Simple API test
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
-        
-        $args = [
-            'headers' => [
-                'Content-Type' => 'application/json',
-                'x-goog-api-key' => $api_key
-            ],
-            'body' => json_encode([
-                'contents' => [
-                    [
-                        'parts' => [
-                            [
-                                'text' => 'Test message'
-                            ]
-                        ]
-                    ]
-                ]
-            ]),
-            'method' => 'POST'
-        ];
-    
-        $response = wp_remote_post($url, $args);
-        
-        if (is_wp_error($response)) {
-            return [
-                'success' => false,
-                'message' => $response->get_error_message()
-            ];
-        }
-    
-        $code = wp_remote_retrieve_response_code($response);
-        if ($code !== 200) {
-            return [
-                'success' => false,
-                'message' => 'API returned status code: ' . $code
-            ];
-        }
-    
-        return ['success' => true];
+    private function add_settings_fields() {
+        $page    = 'ai-changelog-summary';
+        $section = 'aics_main_section';
+
+        add_settings_field( 'aics_ai_provider', 'AI Provider', [ $this, 'render_provider_field' ], $page, $section );
+        add_settings_field( 'aics_api_keys', 'API Key', [ $this, 'render_api_key_fields' ], $page, $section );
+        add_settings_field( 'changelog_urls', 'Changelog URLs', [ $this, 'render_urls_field' ], $page, $section );
+        add_settings_field( 'notification_email', 'Notification Email', [ $this, 'render_email_field' ], $page, $section );
+        add_settings_field( 'aics_frequency', 'Email Frequency', [ $this, 'render_frequency_field' ], $page, $section );
+        add_settings_field( 'aics_day', 'Send Day', [ $this, 'render_day_field' ], $page, $section );
+        add_settings_field( 'aics_time', 'Send Time', [ $this, 'render_time_field' ], $page, $section );
     }
 
-    public function settings_section_callback() {
-        echo '<p>Configure your changelog source and Gemini integration.</p>';
-    }
+    /* ───────────────────────── Field Renderers ───────────────── */
 
-    public function sanitize_changelog_urls($input) { //Comment (whole)
-        $sanitized_urls = [];
-        
-        // Enforce free version limit
-        $input = array_slice($input, 0, $this->max_free_urls);
-
-        foreach ($input as $url) {
-            $sanitized_url = esc_url_raw(trim($url));
-            if (!empty($sanitized_url)) {
-                $sanitized_urls[] = $sanitized_url;
-            }
-        }
-
-        return $sanitized_urls;
-    }
-
-
-    public function render_urls_field() { //Comment (Whole)
-        $urls = get_option('changelog_urls', []);
-        // Pad the array to always show 2 input fields
-        $urls = array_pad($urls, $this->max_free_urls, '');
+    public function render_provider_field() {
+        $current = get_option( 'aics_ai_provider', 'gemini' );
+        $providers = AICS_AI_Providers::get_providers();
         ?>
-        <div id="changelog-urls-container">
-            <?php for ($i = 0; $i < $this->max_free_urls; $i++): ?>
-                <input 
-                    type="url" 
-                    name="changelog_urls[<?php echo $i; ?>]" 
-                    value="<?php echo esc_attr($urls[$i]); ?>" 
+        <select name="aics_ai_provider" id="aics-ai-provider">
+            <?php foreach ( $providers as $key => $label ) : ?>
+                <option value="<?php echo esc_attr( $key ); ?>" <?php selected( $current, $key ); ?>><?php echo esc_html( $label ); ?></option>
+            <?php endforeach; ?>
+        </select>
+        <?php
+    }
+
+    public function render_api_key_fields() {
+        $current  = get_option( 'aics_ai_provider', 'gemini' );
+        $keys = [
+            'gemini' => [ 'option' => 'gemini_api_key', 'label' => 'Gemini API Key',  'link' => 'https://aistudio.google.com/app/apikey' ],
+            'openai' => [ 'option' => 'openai_api_key', 'label' => 'OpenAI API Key',  'link' => 'https://platform.openai.com/api-keys' ],
+            'claude' => [ 'option' => 'claude_api_key', 'label' => 'Claude API Key',  'link' => 'https://console.anthropic.com/settings/keys' ],
+        ];
+        foreach ( $keys as $provider => $meta ) :
+            $value   = get_option( $meta['option'], '' );
+            $display = ( $provider === $current ) ? 'block' : 'none';
+            ?>
+            <div class="aics-api-key-row" data-provider="<?php echo esc_attr( $provider ); ?>" style="display:<?php echo $display; ?>;margin-bottom:8px;">
+                <input
+                    type="password"
+                    name="<?php echo esc_attr( $meta['option'] ); ?>"
+                    value="<?php echo esc_attr( $value ); ?>"
                     class="regular-text"
-                    placeholder="Enter changelog URL #<?php echo $i + 1; ?>"
-                    style="margin-bottom: 10px;"
+                    placeholder="<?php echo esc_attr( $meta['label'] ); ?>"
+                >
+                <a href="<?php echo esc_url( $meta['link'] ); ?>" target="_blank" style="margin-left:8px;font-size:12px;">Get key &rarr;</a>
+            </div>
+        <?php endforeach;
+    }
+
+    public function render_urls_field() {
+        $urls = get_option( 'changelog_urls', [] );
+        $max  = $this->get_max_urls();
+        $urls = array_pad( $urls, $max, '' );
+        ?>
+        <div id="changelog-urls-container" data-max="<?php echo esc_attr( $max ); ?>">
+            <?php for ( $i = 0; $i < $max; $i++ ) : ?>
+                <input
+                    type="url"
+                    name="changelog_urls[<?php echo $i; ?>]"
+                    value="<?php echo esc_attr( $urls[ $i ] ); ?>"
+                    class="regular-text"
+                    placeholder="Changelog URL #<?php echo $i + 1; ?>"
+                    style="margin-bottom:8px;"
                 >
             <?php endfor; ?>
         </div>
-        <p class="description">
-            Enter up to <?php echo $this->max_free_urls; ?> changelog URLs.
-        </p>
+        <p class="description">Enter up to <?php echo esc_html( $max ); ?> changelog URLs<?php echo $max <= 2 ? ' (unlimited in Pro)' : ''; ?>.</p>
         <?php
     }
-    public function render_api_key_field() {
-            $api_key = get_option('gemini_api_key', '');
-            ?>
-            <input 
-                type="password" 
-                name="gemini_api_key" 
-                id="gemini-api-key" 
-                value="<?php echo esc_attr($api_key); ?>" 
-                class="regular-text"
-                placeholder="Enter your Gemini API key"
-            >
-            <?php
-        }
-        public function render_email_field() {
-            $email = get_option('notification_email', get_option('admin_email'));
-            ?>
-            <input 
-                type="email" 
-                name="notification_email" 
-                id="notification-email" 
-                value="<?php echo esc_attr($email); ?>" 
-                class="regular-text"
-                placeholder="Enter email for weekly updates"
-            >
-            <?php
-        }
 
-        public function render_settings_page() {
-            ?>
-            <div class="wrap">
-                <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-                
-                <!-- Settings Form -->
-                <form method="post" action="options.php">
+    public function render_email_field() {
+        $email = get_option( 'notification_email', get_option( 'admin_email' ) );
+        ?>
+        <input type="email" name="notification_email" value="<?php echo esc_attr( $email ); ?>" class="regular-text" placeholder="Email for notifications">
+        <?php
+    }
+
+    public function render_frequency_field() {
+        $current = get_option( 'aics_email_frequency', 'weekly' );
+        $options = apply_filters( 'aics_frequency_options', [ 'daily' => 'Daily', 'weekly' => 'Weekly', 'biweekly' => 'Every Two Weeks', 'monthly' => 'Monthly' ] );
+        ?>
+        <select name="aics_email_frequency" id="aics-frequency">
+            <?php foreach ( $options as $val => $label ) : ?>
+                <option value="<?php echo esc_attr( $val ); ?>" <?php selected( $current, $val ); ?>><?php echo esc_html( $label ); ?></option>
+            <?php endforeach; ?>
+        </select>
+        <?php
+    }
+
+    public function render_day_field() {
+        $current = get_option( 'aics_email_day', 'monday' );
+        $days    = [ 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday' ];
+        $freq    = get_option( 'aics_email_frequency', 'weekly' );
+        $hidden  = ( $freq === 'daily' ) ? 'style="display:none;"' : '';
+        ?>
+        <select name="aics_email_day" id="aics-day">
+            <?php foreach ( $days as $d ) : ?>
+                <option value="<?php echo esc_attr( $d ); ?>" <?php selected( $current, $d ); ?>><?php echo esc_html( ucfirst( $d ) ); ?></option>
+            <?php endforeach; ?>
+        </select>
+        <p class="description aics-day-note">Day of the week to send the email.</p>
+        <?php
+    }
+
+    public function render_time_field() {
+        $current = (int) get_option( 'aics_email_time', 8 );
+        ?>
+        <select name="aics_email_time" id="aics-time">
+            <?php for ( $h = 0; $h < 24; $h++ ) : ?>
+                <option value="<?php echo $h; ?>" <?php selected( $current, $h ); ?>>
+                    <?php echo sprintf( '%02d:00', $h ); ?>
+                    (<?php echo wp_date( 'g A', strtotime( $h . ':00' ) ); ?>)
+                </option>
+            <?php endfor; ?>
+        </select>
+        <p class="description">Time in your WordPress timezone (<?php echo esc_html( wp_timezone_string() ); ?>).</p>
+        <?php
+    }
+
+    /* ───────────────────────── Sanitizers ─────────────────────── */
+
+    public function sanitize_changelog_urls( $input ) {
+        $sanitized = [];
+        $input     = array_slice( (array) $input, 0, $this->get_max_urls() );
+        foreach ( $input as $url ) {
+            $url = esc_url_raw( trim( $url ) );
+            if ( ! empty( $url ) ) {
+                $sanitized[] = $url;
+            }
+        }
+        return $sanitized;
+    }
+
+    /* ───────────────────────── Settings Page ──────────────────── */
+
+    public function render_settings_page() {
+        $next_run = wp_next_scheduled( 'aics_changelog_email' );
+        $freq     = get_option( 'aics_email_frequency', 'weekly' );
+        ?>
+        <div class="wrap">
+            <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+
+            <!-- Settings Form -->
+            <form method="post" action="options.php">
+                <?php
+                settings_fields( $this->option_group );
+                do_settings_sections( 'ai-changelog-summary' );
+                submit_button( 'Save Settings' );
+                ?>
+            </form>
+
+            <!-- Schedule Info -->
+            <div class="aics-card" style="margin-top:20px;">
+                <h2>Schedule</h2>
+                <p>
+                    <strong>Frequency:</strong> <?php echo esc_html( ucfirst( $freq ) ); ?><br>
+                    <strong>Next email:</strong>
                     <?php
-                    settings_fields($this->option_group);
-                    do_settings_sections('changelog-checker');
-                    submit_button('Save Settings');
+                    if ( $next_run ) {
+                        echo esc_html( wp_date( 'l, F j, Y \a\t g:i A', $next_run ) );
+                    } else {
+                        echo 'Not scheduled';
+                    }
                     ?>
-                </form>
-        
-                <!-- Test Email Buttons Container -->
-                <div class="email-testing-section" style="margin-top: 30px;">
-                    <h2>Email Testing</h2>
-                    
-                    <!-- WordPress Mail Test -->
-                    <div class="test-email-container" style="margin-top: 20px;">
-                        <button id="test-wpmail" class="button button-secondary">
-                            Test WordPress Email
-                        </button>
-                        <span id="wpmail-test-result" style="margin-left: 10px;"></span>
-                        <p class="description">
-                            Sends a basic test email to verify WordPress mail functionality.
-                        </p>
-                    </div>
-        
-                    <!-- Changelog Email Test -->
-                    <div class="test-email-container" style="margin-top: 20px;">
-                        <button id="send-test-email" class="button button-secondary">
-                            Send Test Changelog Email
-                        </button>
-                        <span id="test-email-result" style="margin-left: 10px;"></span>
-                        <p class="description">
-                            Sends a test email with the current changelog AI summary.
-                        </p>
-                    </div>
-                </div>
-        
-                <!-- Changelog Preview Section -->
-                <div class="changelog-preview-section" style="margin-top: 30px;">
-                    <h2>Changelog Preview</h2>
-                    <div class="changelog-preview-container">
-                        <button id="preview-changelog" class="button button-primary">
-                            Preview Changelog
-                        </button>
-                        <div id="changelog-preview"></div>
-                        <div id="ai-summary" style="display:none;">
-                            <h3>AI Summary</h3>
-                            <div class="ai-summary-content"></div>
-                        </div>
-                    </div>
-                </div>
-        
-                <!-- Documentation Section -->
-                <div class="documentation-section" style="margin-top: 30px;">
-                    <h2>Documentation</h2>
-                    <div class="documentation-content">
-                        <h4>Setup Instructions:</h4>
-                        <ol>
-                            <li>Enter the changelog URL you want to monitor</li>
-                            <li>Add your Gemini API key</li>
-                            <li>Configure the notification email address</li>
-                            <li>Use the test buttons above to verify your setup</li>
-                        </ol>
-                        <h4>Weekly Updates:</h4>
-                        <p>The plugin will automatically send weekly changelog summaries every Monday at 8 AM.</p>
-                    </div>
-                </div>
-        
-                <!-- Debug Information -->
-                <?php if (WP_DEBUG): ?>
-                <div class="debug-section" style="margin-top: 30px;">
-                    <h2>Debug Information</h2>
-                    <pre style="background: #f5f5f5; padding: 10px; overflow: auto;">
-                        PHP Version: <?php echo PHP_VERSION; ?>
-                        WordPress Version: <?php echo get_bloginfo('version'); ?>
-                        Plugin Version: 1.1
-                        Timezone: <?php echo wp_timezone_string(); ?>
-                    </pre>
-                </div>
-                <?php endif; ?>
+                </p>
             </div>
-            <?php
+
+            <!-- Email Testing -->
+            <div class="aics-card" style="margin-top:20px;">
+                <h2>Email Testing</h2>
+                <div style="margin-top:12px;">
+                    <button id="test-wpmail" class="button button-secondary">Test WordPress Email</button>
+                    <span id="wpmail-test-result" style="margin-left:10px;"></span>
+                    <p class="description">Sends a basic test email to verify WordPress mail.</p>
+                </div>
+                <div style="margin-top:12px;">
+                    <button id="send-test-email" class="button button-secondary">Send Test Changelog Email</button>
+                    <span id="test-email-result" style="margin-left:10px;"></span>
+                    <p class="description">Sends the current AI summary to your notification email.</p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="aics-card" style="margin-top:20px;">
+                <h2>Actions</h2>
+                <div style="margin-top:12px;">
+                    <button id="preview-changelog" class="button button-primary">Preview Changelog</button>
+                    <p class="description">Fetch and preview AI summaries without sending email.</p>
+                </div>
+                <div style="margin-top:16px;">
+                    <button id="force-fetch" class="button button-primary">Fetch &amp; Email Now</button>
+                    <label style="margin-left:12px;">
+                        <input type="checkbox" id="force-fetch-ignore-diff" value="1"> Send even if no changes detected
+                    </label>
+                    <span id="force-fetch-result" style="margin-left:10px;"></span>
+                    <p class="description">Force-fetch all changelogs (bypasses cache) and send email immediately.</p>
+                </div>
+            </div>
+
+            <!-- Preview Area -->
+            <div class="aics-card" style="margin-top:20px;">
+                <h2>Changelog Preview</h2>
+                <div id="changelog-preview"></div>
+            </div>
+
+            <?php do_action( 'aics_after_settings_form' ); ?>
+
+            <!-- Documentation -->
+            <div class="aics-card" style="margin-top:20px;">
+                <h2>Documentation</h2>
+                <h4>Setup Instructions:</h4>
+                <ol>
+                    <li>Select your AI provider and enter the API key</li>
+                    <li>Enter the changelog URLs you want to monitor</li>
+                    <li>Configure the notification email address</li>
+                    <li>Set your preferred email schedule</li>
+                    <li>Use the test buttons above to verify your setup</li>
+                </ol>
+                <h4>Change Detection:</h4>
+                <p>The plugin stores a fingerprint of each changelog. Scheduled emails are only sent when changes are detected. Use "Fetch &amp; Email Now" to force an email regardless.</p>
+            </div>
+
+            <?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) : ?>
+            <div class="aics-card" style="margin-top:20px;">
+                <h2>Debug Information</h2>
+                <pre style="background:#f5f5f5;padding:10px;overflow:auto;">
+PHP Version: <?php echo PHP_VERSION; ?>
+
+WordPress Version: <?php echo get_bloginfo( 'version' ); ?>
+
+Plugin Version: <?php echo AICS_VERSION; ?>
+
+Timezone: <?php echo wp_timezone_string(); ?>
+
+Provider: <?php echo esc_html( get_option( 'aics_ai_provider', 'gemini' ) ); ?>
+
+Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; ?>
+                </pre>
+            </div>
+            <?php endif; ?>
+
+            <?php do_action( 'aics_settings_page_bottom' ); ?>
+        </div>
+        <?php
+    }
+
+    /* ───────────────────────── Assets ─────────────────────────── */
+
+    public function enqueue_scripts( $hook ) {
+        // Settings page.
+        if ( $hook === 'settings_page_ai-changelog-summary' ) {
+            wp_enqueue_script( 'aics-admin', AICS_URL . 'js/changelog-script.js', [ 'jquery' ], AICS_VERSION, true );
+            wp_localize_script( 'aics-admin', 'AICS', [
+                'ajax_url' => admin_url( 'admin-ajax.php' ),
+                'nonce'    => wp_create_nonce( 'aics_nonce' ),
+            ] );
         }
 
-    public function enqueue_scripts($hook) {
-            if ($hook !== 'settings_page_ai-changelog-summary') return;
-
-        wp_enqueue_script('jquery');
-        wp_enqueue_script('changelog-checker-script', plugin_dir_url(__FILE__) . 'js/changelog-script.js', ['jquery'], '1.0', true);
-        
-        wp_localize_script('changelog-checker-script', 'AIChangelogSummary', [
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('changelog_nonce')
-        ]);
+        // Dashboard page (for widget refresh button).
+        if ( $hook === 'index.php' ) {
+            wp_enqueue_script( 'aics-dashboard', AICS_URL . 'js/changelog-script.js', [ 'jquery' ], AICS_VERSION, true );
+            wp_localize_script( 'aics-dashboard', 'AICS', [
+                'ajax_url' => admin_url( 'admin-ajax.php' ),
+                'nonce'    => wp_create_nonce( 'aics_nonce' ),
+            ] );
+        }
     }
 
     public function add_inline_styles() {
-        echo '<style>
-            .ai-summary {
-                margin: 20px 0;
-                padding: 15px;
-                background: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 4px;
-            }
-            .ai-summary-content {
-                margin-top: 10px;
-            }
-            .ai-summary-content h2 {
-                margin-top: 20px;
-                font-size: 24px;
-                color: #333;
-                padding-bottom: 10px;
-                border-bottom: 1px solid #eee;
-            }
-            .ai-summary-content h3 {
-                font-size: 20px;
-                color: #444;
-                margin: 15px 0 10px;
-            }
-            .ai-summary-content h4 {
-                font-size: 16px;
-                color: #666;
-                margin: 10px 0;
-            }
-            .ai-summary-content ul {
-                margin: 10px 0 20px 20px;
-                list-style-type: none;
-            }
-            .ai-summary-content ul li {
-                margin: 5px 0;
-                line-height: 1.5;
-            }
-            .test-email-container {
-            margin: 20px 0;
-            padding: 15px;
-            background: #fff;
-            border: 1px solid #ccd0d4;
-            border-radius: 4px;
-        }
-            #test-email-result {
-                display: inline-block;
-                padding: 5px 10px;
-                font-weight: 500;
-            }
-        </style>';
-    }
-
-    public function handle_changelog_fetch() { //Comment (whole)
-
-        check_ajax_referer('changelog_nonce', 'security');
-    
-        $urls = get_option('changelog_urls', []);
-    
-        // Enforce URL limit
-    
-        $urls = array_slice($urls, 0, $this->max_free_urls);
-    
-        if (empty($urls)) {
-    
-            wp_send_json_error(['message' => 'No URLs configured']);
-    
+        $screen = get_current_screen();
+        if ( ! $screen || ! in_array( $screen->id, [ 'settings_page_ai-changelog-summary', 'dashboard' ], true ) ) {
             return;
-    
         }
-    
-        $results = [];
-    
-        foreach ($urls as $url) {
-    
-            if (empty($url)) continue;
-    
-            $result = $this->process_changelog($url);
-    
-            if ($result['success']) {
-    
-                $results[] = [
-    
-                    'url' => $url,
-    
-                    'success' => true,
-    
-                    'message' => 'Changelog successfully fetched',
-    
-                    'content' => $result['content'] ?? '',
-    
-                    'ai_summary' => $result['ai_summary'] ?? ''
-    
-                ];
-    
-            } else {
-    
-                $results[] = [
-    
-                    'url' => $url,
-    
-                    'success' => false,
-    
-                    'message' => $result['message'] ?? 'Failed to fetch changelog',
-    
-                    'error' => $result
-    
-                ];
-    
+        ?>
+        <style>
+            .aics-card {
+                background: #fff;
+                border: 1px solid #ccd0d4;
+                border-radius: 6px;
+                padding: 16px 24px;
             }
-    
-        }
-    
-        wp_send_json_success([
-    
-            'message' => 'Processed ' . count($results) . ' changelogs',
-    
-            'results' => $results
-    
-        ]);
-    
-    }
-    
-
-// Modify handle_changelog_fetch to support multiple URLs
-
-
-// Add the process_changelog function here
-public function process_changelog($url) {
-    // First, check if we have a recent cached summary
-    $stored_summaries = get_option('changelog_summaries', []);
-    $cached_summary = isset($stored_summaries[$url]) ? $stored_summaries[$url] : null;
-    
-    // Check if cached summary is less than 24 hours old
-    if ($cached_summary && 
-        (current_time('timestamp') - $cached_summary['timestamp']) < (24 * HOUR_IN_SECONDS)) {
-        return [
-            'success' => true,
-            'content' => 'Cached content',
-            'ai_summary' => $cached_summary['summary']
-        ];
-    }
-    
-    // Fetch the changelog
-    $response = wp_remote_get($url, [
-        'timeout' => 30,
-        'sslverify' => false
-    ]);
-    
-    if (is_wp_error($response)) {
-        return [
-            'success' => false,
-            'message' => 'Failed to fetch changelog: ' . $response->get_error_message()
-        ];
-    }
-    
-    // Get the body of the response
-    $body = wp_remote_retrieve_body($response);
-    
-    if (empty($body)) {
-        return [
-            'success' => false,
-            'message' => 'Empty changelog content'
-        ];
-    }
-    
-    // Parse the HTML changelog
-    $changelog_content = $this->parse_html_changelog($body);
-    
-    // Generate AI summary
-    $ai_result = $this->summarize_with_ai($changelog_content);
-    
-    // Check if AI summary generation was successful
-    if (!$ai_result['success']) {
-        return [
-            'success' => false,
-            'message' => $ai_result['error'] ?? 'Failed to generate AI summary',
-            'error_details' => $ai_result
-        ];
-    }
-    
-    // Store the summary
-    $this->store_changelog_summary($url, $ai_result['summary']);
-    
-    return [
-        'success' => true,
-        'content' => $changelog_content,
-        'ai_summary' => $ai_result['summary']
-    ];
-}
-
-// Helper methods (add these if not already present)
-private function format_changelog($data) {
-    $html = '<div class="changelog-content">';
-    
-    if (is_array($data)) {
-        foreach ($data as $entry) {
-            $html .= '<div class="changelog-entry">';
-            
-            // Handle different possible structures
-            if (is_array($entry)) {
-                if (isset($entry['version'])) {
-                    $html .= '<h3>Version: ' . esc_html($entry['version']) . '</h3>';
-                }
-                
-                if (isset($entry['changes'])) {
-                    if (is_array($entry['changes'])) {
-                        $html .= '<ul>';
-                        foreach ($entry['changes'] as $change) {
-                            $html .= '<li>' . esc_html($change) . '</li>';
-                        }
-                        $html .= '</ul>';
-                    } else {
-                        $html .= '<p>' . esc_html($entry['changes']) . '</p>';
-                    }
-                }
-            } elseif (is_string($entry)) {
-                $html .= '<p>' . esc_html($entry) . '</p>';
+            .aics-card h2 { margin-top: 0; }
+            .ai-summary-content { margin-top: 10px; }
+            .ai-summary-content h2 { font-size: 22px; color: #333; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+            .ai-summary-content h3 { font-size: 18px; color: #444; margin: 12px 0 8px; }
+            .ai-summary-content h4 { font-size: 15px; color: #666; margin: 8px 0; }
+            .ai-summary-content ul { margin: 8px 0 16px 20px; list-style: none; }
+            .ai-summary-content ul li { margin: 4px 0; line-height: 1.5; }
+            .changelog-result { margin-bottom: 20px; padding: 16px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
+            .changelog-result .status-badge {
+                display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; margin-bottom: 8px;
             }
-            
-            $html .= '</div>';
-        }
-    } elseif (is_string($data)) {
-        $html .= '<div class="changelog-entry">';
-        $html .= '<p>' . esc_html($data) . '</p>';
-        $html .= '</div>';
-    }
-    
-    $html .= '</div>';
-    return $html;
-}
-
-private function parse_html_changelog($html) {
-    // Basic HTML parsing
-    $dom = new DOMDocument();
-    @$dom->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'), LIBXML_NOERROR);
-    
-    $xpath = new DOMXPath($dom);
-    $changelog_elements = $xpath->query("//*[contains(@class, 'changelog') or @id='changelog']");
-    
-    $changelog_content = '';
-    if ($changelog_elements->length > 0) {
-        foreach ($changelog_elements as $element) {
-            $changelog_content .= $dom->saveHTML($element);
-        }
-    }
-    
-    // If no specific changelog elements found, try to extract meaningful content
-    if (empty($changelog_content)) {
-        // Log the original HTML for debugging
-        error_log('Original HTML: ' . substr($html, 0, 1000));
-        
-        // Fallback to first few paragraphs or full content
-        $changelog_content = preg_match('/<p>.*?<\/p>/s', $html, $matches) 
-            ? $matches[0] 
-            : $html;
-    }
-    
-    return $changelog_content ?: 'Success.';
-}
-private function store_changelog_summary($url, $summary) {
-    $stored_summaries = get_option('changelog_summaries', []);
-    $stored_summaries[$url] = [
-        'summary' => $summary,
-        'timestamp' => current_time('timestamp')
-    ];
-    update_option('changelog_summaries', $stored_summaries);
-}
-
-private function format_ai_response($text) {
-    // Replace text representations with actual HTML tags
-    $replacements = [
-        '/^H1 /m' => '<h2>',
-        '/^H2 /m' => '<h3>',
-        '/^H3 /m' => '<h3>',
-        '/^H4 /m' => '<h4>',
-        '/ new line$/' => '</h2></h3></h4>',
-        '/\n(?=-)/' => '<br>'  // Add line break before bullet points
-    ];
-
-    $formatted = preg_replace(array_keys($replacements), array_values($replacements), $text);
-    
-    // Wrap bullet points in a list
-    $formatted = preg_replace('/(<br>- .+?)(?=<br>|$)/s', '<ul>$1</ul>', $formatted);
-    
-    return $formatted;
-}
-
-private function summarize_with_ai($content) {
-    $api_key = get_option('gemini_api_key');
-    
-    if (empty($api_key)) {
-        return ['error' => 'Gemini API key not configured'];
+            .status-updated { background: #dcfce7; color: #166534; }
+            .status-unchanged { background: #fef3c7; color: #92400e; }
+            .status-error { background: #fee2e2; color: #991b1b; }
+            /* Dashboard widget */
+            .aics-widget-item { padding: 10px 0; border-bottom: 1px solid #eee; }
+            .aics-widget-item:last-child { border-bottom: none; }
+            .aics-widget-url { font-size: 12px; color: #666; word-break: break-all; }
+            .aics-widget-summary { font-size: 13px; margin-top: 4px; }
+            .aics-widget-time { font-size: 11px; color: #999; margin-top: 4px; }
+        </style>
+        <?php
     }
 
-    // Updated API endpoint URL
-    $url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' . $api_key;
-    
-    $data = [
-        'contents' => [
-            [
-                'parts' => [
-                    [
-                        'text' => "Carefully analyze the following content. Your task is to:
+    /* ───────────────────────── Core: Process Changelog ────────── */
 
-                           - Provide an analysis section with:
-                             <h3>Product Name: What is the product name?</h3>
-                             <h4>Latest Core Version: What is the latest core/free version number, and the release date?</h4>
-                             <h4>Release Date: What is the release date for the latest core version?</h4>
-                             <h4>Core Release Summary:</h4> Summarize the latest core version release notes in few sentences (Highlight Key Changes, Notable Improvements, Impact Assessment, Breaking Changes).
-                             <h4>Latest Pro Version: What is the latest pro/premium version number, and the release date?</h4>
-                             <h4>Release Date: What is the release date for the latest pro version?</h4>
-                             <h4>Pro Release Summary:</h4> Summarize the latest pro version release notes in few sentences.
-                        
-                        If it is NOT a changelog:
-                           Respond with a clear message: <h4>NOT A CHANGELOG: This page does not appear to be a valid changelog. It may be a generic page, documentation, or unrelated content.</h4>
+    /**
+     * Fetch, extract, hash, and summarize a changelog URL.
+     *
+     * @param string $url         URL to fetch.
+     * @param bool   $force       Bypass cache.
+     * @return array { success, content, ai_summary, changed, content_hash }
+     */
+    public function process_changelog( $url, $force = false ) {
+        $stored    = get_option( 'changelog_summaries', [] );
+        $cached    = isset( $stored[ $url ] ) ? $stored[ $url ] : null;
+        $provider  = get_option( 'aics_ai_provider', 'gemini' );
+        $api_key   = get_option( $provider . '_api_key', '' );
 
-                        Analyze this content carefully and provide a precise response:" . $content
-                    ]
-                ]
-            ]
-        ],
-        'generationConfig' => [
-            'temperature' => 0.2,  // Lower temperature for more precise responses
-            'topK' => 40,
-            'topP' => 0.95,
-            'maxOutputTokens' => 1024,
-        ]
-    ];
-    
-    $args = [
-        'headers' => [
-            'Content-Type' => 'application/json'
-        ],
-        'body' => json_encode($data),
-        'method' => 'POST',
-        'timeout' => 30
-    ];
-    
-    $response = wp_remote_post($url, $args);
-    
-    if (is_wp_error($response)) {
-        return [
-            'error' => 'API request failed: ' . $response->get_error_message(),
-            'summary' => null
-        ];
-    }
-    
-    $body = wp_remote_retrieve_body($response);
-    $result = json_decode($body, true);
-    
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        return [
-            'error' => 'Failed to parse API response',
-            'summary' => null
-        ];
-    }
-    
-    // Check for API error response
-    if (isset($result['error'])) {
-        return [
-            'error' => 'API Error: ' . $result['error']['message'],
-            'summary' => null
-        ];
-    }
-    
-    try {
-        $summary = $result['candidates'][0]['content']['parts'][0]['text'];
-        
-        // Check if the response indicates it's not a changelog
-        if (strpos($summary, 'NOT A CHANGELOG:') !== false) {
+        // Return cache if not forced and cache is < 24 h old.
+        if ( ! $force && $cached &&
+             ( current_time( 'timestamp' ) - $cached['timestamp'] ) < DAY_IN_SECONDS ) {
             return [
-                'success' => false,
-                'error' => $summary,
-                'summary' => null
+                'success'      => true,
+                'content'      => 'Cached content',
+                'ai_summary'   => $cached['summary'],
+                'changed'      => false,
+                'content_hash' => $cached['content_hash'] ?? '',
             ];
         }
-        
-        $formatted_summary = $this->format_ai_response($summary);
-        
-        return [
-            'success' => true,
-            'error' => null,
-            'summary' => $formatted_summary
-        ];
-    } catch (Exception $e) {
-        return [
-            'success' => false,
-            'error' => 'Failed to extract summary: ' . $e->getMessage(),
-            'summary' => null
-        ];
-    }
-}
 
-    /**
-     * Adds weekly schedule to WordPress cron schedules
-     */
-    public function add_weekly_schedule($schedules) {
-        $schedules['weekly'] = array(
-            'interval' => 7 * 24 * 60 * 60,
-            'display' => __('Once Weekly')
-        );
-        return $schedules;
-    }
-
-    /**
-     * Calculates the timestamp for next Monday at 8 AM
-     */
-    private function get_next_monday_8am() {
-        $date = new DateTime();
-        $date->modify('next monday 8am');
-        return $date->getTimestamp();
-    }
-    /**
-     * Sends the weekly changelog email
-     */
-    public function send_changelog_email() {
-        $urls = get_option('changelog_urls', []);
-        $email = get_option('notification_email', get_option('admin_email'));
-        $api_key = get_option('gemini_api_key');
-        
-        if (empty($urls) || empty($email) || empty($api_key)) {
-            $this->log_error('Missing required settings for changelog email');
-            return;
+        // Fetch.
+        $response = wp_remote_get( $url, [ 'timeout' => 30, 'sslverify' => false ] );
+        if ( is_wp_error( $response ) ) {
+            return [
+                'success' => false,
+                'message' => 'Fetch failed: ' . $response->get_error_message(),
+            ];
         }
-        
-        $all_summaries = [];
-        $error_urls = [];
-        
-        // Process each URL
-        foreach ($urls as $url) {
-            if (empty($url)) continue;
-            
-            // Log the URL being processed
-            error_log('Processing Changelog URL: ' . $url);
-            
-            $result = $this->process_changelog($url);
-            
-            if ($result['success'] && isset($result['ai_summary'])) {
-                $all_summaries[] = [
-                    'url' => $url,
-                    'summary' => $result['ai_summary']
-                ];
-                
-                // Log successful processing
-                error_log('Successfully processed changelog for: ' . $url);
+
+        $body = wp_remote_retrieve_body( $response );
+        if ( empty( $body ) ) {
+            return [ 'success' => false, 'message' => 'Empty response body.' ];
+        }
+
+        // Extract content.
+        $content      = AICS_Content_Extractor::extract( $body );
+        $content_hash = md5( $content );
+
+        // Compare hash — detect changes.
+        $old_hash = $cached['content_hash'] ?? '';
+        $changed  = ( $content_hash !== $old_hash );
+
+        // If unchanged and not forced, return cached summary.
+        if ( ! $changed && ! $force && $cached ) {
+            return [
+                'success'      => true,
+                'content'      => $content,
+                'ai_summary'   => $cached['summary'],
+                'changed'      => false,
+                'content_hash' => $content_hash,
+            ];
+        }
+
+        // Summarize with AI.
+        $ai_result = AICS_AI_Providers::summarize( $content, $provider, $api_key );
+
+        if ( ! $ai_result['success'] ) {
+            return [
+                'success' => false,
+                'message' => $ai_result['error'] ?? 'AI summarization failed.',
+            ];
+        }
+
+        // Store.
+        $this->store_changelog_summary( $url, $ai_result['summary'], $content_hash );
+
+        do_action( 'aics_changelog_processed', $url, $ai_result['summary'], $content_hash, $changed );
+
+        return [
+            'success'      => true,
+            'content'      => $content,
+            'ai_summary'   => $ai_result['summary'],
+            'changed'      => $changed,
+            'content_hash' => $content_hash,
+        ];
+    }
+
+    private function store_changelog_summary( $url, $summary, $content_hash ) {
+        $stored = get_option( 'changelog_summaries', [] );
+        $stored[ $url ] = [
+            'summary'      => $summary,
+            'content_hash' => $content_hash,
+            'timestamp'    => current_time( 'timestamp' ),
+        ];
+        update_option( 'changelog_summaries', $stored );
+    }
+
+    /* ───────────────────────── AJAX: Preview ──────────────────── */
+
+    public function handle_changelog_fetch() {
+        check_ajax_referer( 'aics_nonce', 'security' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( [ 'message' => 'Permission denied.' ] );
+        }
+
+        $urls    = array_slice( get_option( 'changelog_urls', [] ), 0, $this->get_max_urls() );
+        if ( empty( $urls ) ) {
+            wp_send_json_error( [ 'message' => 'No URLs configured.' ] );
+        }
+
+        $results = [];
+        foreach ( $urls as $url ) {
+            if ( empty( $url ) ) continue;
+            $result = $this->process_changelog( $url );
+            $results[] = [
+                'url'        => $url,
+                'success'    => $result['success'],
+                'message'    => $result['message'] ?? 'OK',
+                'ai_summary' => $result['ai_summary'] ?? '',
+                'changed'    => $result['changed'] ?? null,
+            ];
+        }
+
+        wp_send_json_success( [ 'results' => $results ] );
+    }
+
+    /* ───────────────────────── AJAX: Force Fetch & Email ──────── */
+
+    public function handle_force_fetch() {
+        check_ajax_referer( 'aics_nonce', 'security' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( [ 'message' => 'Permission denied.' ] );
+        }
+
+        $urls       = array_slice( get_option( 'changelog_urls', [] ), 0, $this->get_max_urls() );
+        $email      = apply_filters( 'aics_notification_emails', get_option( 'notification_email', get_option( 'admin_email' ) ) );
+        $ignore_diff = isset( $_POST['ignore_diff'] ) && $_POST['ignore_diff'] === '1';
+
+        if ( empty( $urls ) ) {
+            wp_send_json_error( [ 'message' => 'No URLs configured.' ] );
+        }
+
+        $summaries   = [];
+        $error_urls  = [];
+        $unchanged   = [];
+
+        foreach ( $urls as $url ) {
+            if ( empty( $url ) ) continue;
+
+            $result = $this->process_changelog( $url, true ); // force = true
+
+            if ( $result['success'] ) {
+                if ( $result['changed'] ) {
+                    $summaries[] = [ 'url' => $url, 'summary' => $result['ai_summary'] ];
+                } else {
+                    $unchanged[] = $url;
+                }
             } else {
                 $error_urls[] = $url;
-                $this->log_error('Failed to generate AI summary for URL', [
-                    'url' => $url,
-                    'error' => $result['error'] ?? 'Unknown error'
-                ]);
             }
         }
-        
-        // Combine summaries if we have any
-        if (!empty($all_summaries)) {
-            $subject = 'Weekly Changelog AI Summaries';
-            
-            $message = '<html><body>';
-            $message .= '<h1>Weekly Changelog Summaries</h1>';
-            
-            foreach ($all_summaries as $index => $changelog) {
-                $message .= '<div style="margin-bottom: 20px;">';
-                $message .= '<h2>Changelog #' . ($index + 1) . ': ' . esc_html($changelog['url']) . '</h2>';
-                $message .= $changelog['summary'];
-                $message .= '</div>';
-            }
-            
-            // Add error information if any
-            if (!empty($error_urls)) {
-                $message .= '<h2>Errors</h2>';
-                $message .= '<p>Failed to process the following URLs:</p>';
-                $message .= '<ul>';
-                foreach ($error_urls as $error_url) {
-                    $message .= '<li>' . esc_html($error_url) . '</li>';
+
+        // Decide whether to send email.
+        $should_send = $ignore_diff
+            ? ( ! empty( $summaries ) || ! empty( $unchanged ) )
+            : ! empty( $summaries );
+
+        if ( $should_send ) {
+            // If ignoring diff, include unchanged in summaries for the email.
+            $email_summaries = $summaries;
+            if ( $ignore_diff ) {
+                $stored = get_option( 'changelog_summaries', [] );
+                foreach ( $unchanged as $u ) {
+                    if ( isset( $stored[ $u ] ) ) {
+                        $email_summaries[] = [ 'url' => $u, 'summary' => $stored[ $u ]['summary'] ];
+                    }
                 }
-                $message .= '</ul>';
+                $unchanged = []; // Already included in email.
             }
-            
-            $message .= '</body></html>';
-            
-            $headers = array(
-                'Content-Type: text/html; charset=UTF-8',
-                'From: WordPress <' . get_option('admin_email') . '>'
-            );
-            
-            $sent = wp_mail($email, $subject, $message, $headers);
-            
-            if (!$sent) {
-                $this->log_error('Failed to send changelog email', [
-                    'email' => $email
-                ]);
+
+            $freq    = get_option( 'aics_email_frequency', 'weekly' );
+            $subject = AICS_Email_Template::subject( $freq );
+            $body    = AICS_Email_Template::render( $email_summaries, $error_urls, $unchanged );
+            $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+
+            $recipients = is_array( $email ) ? $email : [ $email ];
+            $sent = false;
+            foreach ( $recipients as $to ) {
+                if ( wp_mail( trim( $to ), $subject, $body, $headers ) ) {
+                    $sent = true;
+                }
             }
-            
-            // Log the entire process
-            error_log('Changelog Email Sent. Processed URLs: ' . count($all_summaries));
+
+            do_action( 'aics_after_email_sent', $email_summaries, $error_urls, $unchanged );
+
+            $display_email = is_array( $email ) ? implode( ', ', $email ) : $email;
+            wp_send_json_success( [
+                'message'    => $sent ? 'Email sent to ' . $display_email : 'Failed to send email.',
+                'sent'       => $sent,
+                'changed'    => count( $summaries ),
+                'unchanged'  => count( $unchanged ),
+                'errors'     => count( $error_urls ),
+            ] );
         } else {
-            error_log('No changelog summaries to send');
+            wp_send_json_success( [
+                'message'   => 'No changes detected. Email not sent.',
+                'sent'      => false,
+                'changed'   => 0,
+                'unchanged' => count( $unchanged ),
+                'errors'    => count( $error_urls ),
+            ] );
         }
     }
 
-    /**
-     * Cleanup on plugin deactivation
-     */
-    public function clear_old_changelog_summaries() {
-        $stored_summaries = get_option('changelog_summaries', []);
-        $current_time = current_time('timestamp');
-        
-        // Remove summaries older than 7 days
-        foreach ($stored_summaries as $url => $summary) {
-            if (($current_time - $summary['timestamp']) > (7 * DAY_IN_SECONDS)) {
-                unset($stored_summaries[$url]);
+    /* ───────────────────────── AJAX: Test Emails ──────────────── */
+
+    public function handle_test_email() {
+        check_ajax_referer( 'aics_nonce', 'security' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( [ 'message' => 'Permission denied.' ] );
+        }
+
+        $urls    = get_option( 'changelog_urls', [] );
+        $email   = get_option( 'notification_email', get_option( 'admin_email' ) );
+
+        if ( empty( $urls ) ) {
+            wp_send_json_error( [ 'message' => 'No changelog URLs configured.' ] );
+        }
+        if ( empty( $email ) ) {
+            wp_send_json_error( [ 'message' => 'No notification email configured.' ] );
+        }
+
+        $summaries  = [];
+        $error_urls = [];
+
+        foreach ( $urls as $url ) {
+            if ( empty( $url ) ) continue;
+            $result = $this->process_changelog( $url );
+            if ( $result['success'] && ! empty( $result['ai_summary'] ) ) {
+                $summaries[] = [ 'url' => $url, 'summary' => $result['ai_summary'] ];
+            } else {
+                $error_urls[] = $url;
             }
         }
-        
-        update_option('changelog_summaries', $stored_summaries);
-    }
-        // Add this method near the end of the class, before the closing bracket
-    public function deactivate() {
-        // Clear scheduled hooks
-        wp_clear_scheduled_hook('changelog_weekly_email');
-        wp_clear_scheduled_hook('clear_old_changelog_summaries');
-        
-        // Delete stored options
-        delete_option('changelog_summaries');
+
+        if ( empty( $summaries ) ) {
+            wp_send_json_error( [ 'message' => 'No summaries could be generated.', 'error_urls' => $error_urls ] );
+        }
+
+        $subject = '[Test] ' . AICS_Email_Template::subject( get_option( 'aics_email_frequency', 'weekly' ) );
+        $body    = AICS_Email_Template::render( $summaries, $error_urls );
+        $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+
+        $sent = wp_mail( $email, $subject, $body, $headers );
+
+        if ( $sent ) {
+            wp_send_json_success( [ 'message' => 'Test email sent to ' . $email ] );
+        } else {
+            wp_send_json_error( [ 'message' => 'Failed to send email.' ] );
+        }
     }
 
+    public function test_wp_mail() {
+        check_ajax_referer( 'aics_nonce', 'security' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( [ 'message' => 'Permission denied.' ] );
+        }
+
+        $email   = get_option( 'notification_email', get_option( 'admin_email' ) );
+        $subject = 'Test Email from AI Changelog Summary';
+        $message = 'This is a test email to verify wp_mail is working correctly.';
+        $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+
+        $sent = wp_mail( $email, $subject, $message, $headers );
+
+        if ( $sent ) {
+            wp_send_json_success( [ 'message' => 'Test email sent to ' . $email ] );
+        } else {
+            wp_send_json_error( [ 'message' => 'Failed to send email. Check your WordPress email config.' ] );
+        }
+    }
+
+    /* ───────────────────────── Cron: Send Email ───────────────── */
+
+    public function send_changelog_email() {
+        $urls    = get_option( 'changelog_urls', [] );
+        $email   = apply_filters( 'aics_notification_emails', get_option( 'notification_email', get_option( 'admin_email' ) ) );
+
+        if ( empty( $urls ) || empty( $email ) ) {
+            $this->log_error( 'Missing settings for scheduled email.' );
+            return;
+        }
+
+        $summaries  = [];
+        $error_urls = [];
+        $unchanged  = [];
+
+        foreach ( $urls as $url ) {
+            if ( empty( $url ) ) continue;
+
+            $result = $this->process_changelog( $url, true ); // Force fresh fetch.
+
+            if ( $result['success'] ) {
+                if ( $result['changed'] ) {
+                    $summaries[] = [ 'url' => $url, 'summary' => $result['ai_summary'] ];
+                } else {
+                    $unchanged[] = $url;
+                }
+            } else {
+                $error_urls[] = $url;
+                $this->log_error( 'Failed URL: ' . $url, [ 'error' => $result['message'] ?? '' ] );
+            }
+        }
+
+        // Only email when at least one changelog has changed.
+        if ( empty( $summaries ) ) {
+            $this->log_error( 'No changelog changes detected. Skipping email.' );
+            return;
+        }
+
+        $freq    = get_option( 'aics_email_frequency', 'weekly' );
+        $subject = AICS_Email_Template::subject( $freq );
+        $body    = AICS_Email_Template::render( $summaries, $error_urls, $unchanged );
+        $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+
+        $recipients = is_array( $email ) ? $email : [ $email ];
+        $sent = false;
+        foreach ( $recipients as $to ) {
+            if ( wp_mail( trim( $to ), $subject, $body, $headers ) ) {
+                $sent = true;
+            }
+        }
+
+        if ( ! $sent ) {
+            $this->log_error( 'Failed to send scheduled email.', [ 'email' => $email ] );
+        }
+
+        do_action( 'aics_after_email_sent', $summaries, $error_urls, $unchanged );
+    }
+
+    /* ───────────────────────── Dashboard Widget ───────────────── */
+
+    public function add_dashboard_widget() {
+        wp_add_dashboard_widget(
+            'aics_dashboard_widget',
+            'AI Changelog Summary',
+            [ $this, 'render_dashboard_widget' ]
+        );
+    }
+
+    public function render_dashboard_widget() {
+        $stored = get_option( 'changelog_summaries', [] );
+
+        if ( empty( $stored ) ) {
+            echo '<p style="color:#666;">No changelog summaries yet. <a href="' . esc_url( admin_url( 'options-general.php?page=ai-changelog-summary' ) ) . '">Configure the plugin</a> to get started.</p>';
+            return;
+        }
+
+        foreach ( $stored as $url => $data ) {
+            $summary_text = wp_strip_all_tags( $data['summary'] );
+            $truncated    = mb_strlen( $summary_text ) > 200 ? mb_substr( $summary_text, 0, 200 ) . '...' : $summary_text;
+            $time_ago     = human_time_diff( $data['timestamp'], current_time( 'timestamp' ) ) . ' ago';
+            ?>
+            <div class="aics-widget-item">
+                <div class="aics-widget-url"><?php echo esc_html( $url ); ?></div>
+                <div class="aics-widget-summary"><?php echo esc_html( $truncated ); ?></div>
+                <div class="aics-widget-time"><?php echo esc_html( $time_ago ); ?></div>
+            </div>
+            <?php
+        }
+        ?>
+        <div style="margin-top:12px;display:flex;gap:8px;">
+            <button id="aics-widget-refresh" class="button button-small button-primary">Refresh Now</button>
+            <a href="<?php echo esc_url( admin_url( 'options-general.php?page=ai-changelog-summary' ) ); ?>" class="button button-small">View Full Summary</a>
+        </div>
+        <span id="aics-widget-result" style="display:block;margin-top:6px;font-size:12px;"></span>
+        <?php
+    }
+
+    /* ───────────────────────── Cleanup ─────────────────────────── */
+
+    public function clear_old_changelog_summaries() {
+        $stored = get_option( 'changelog_summaries', [] );
+        $now    = current_time( 'timestamp' );
+        $changed = false;
+
+        foreach ( $stored as $url => $data ) {
+            if ( ( $now - $data['timestamp'] ) > ( 30 * DAY_IN_SECONDS ) ) {
+                unset( $stored[ $url ] );
+                $changed = true;
+            }
+        }
+
+        if ( $changed ) {
+            update_option( 'changelog_summaries', $stored );
+        }
+    }
+
+    public function deactivate() {
+        wp_clear_scheduled_hook( 'aics_changelog_email' );
+        wp_clear_scheduled_hook( 'changelog_weekly_email' ); // v1.x cleanup.
+    }
 }
 
-// Add this after the class definition
-register_deactivation_hook(__FILE__, function() {
-    $changelog_checker = new AIChangelogSummary();
-    $changelog_checker->deactivate();
-});
+/* ───────────────────────── Bootstrap ─────────────────────────── */
 
-// Initialize the plugin
-add_action('plugins_loaded', function() {
+register_deactivation_hook( __FILE__, function () {
+    $plugin = new AIChangelogSummary();
+    $plugin->deactivate();
+} );
+
+add_action( 'plugins_loaded', function () {
     new AIChangelogSummary();
-});
+} );
