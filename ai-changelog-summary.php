@@ -22,12 +22,8 @@ require_once AICS_PATH . 'includes/class-email-template.php';
 
 class AIChangelogSummary {
 
-    private $max_free_urls = 2;
-    private $option_group  = 'ai-changelog-summary-settings';
-
-    private function get_max_urls() {
-        return apply_filters( 'aics_max_urls', $this->max_free_urls );
-    }
+    private $default_url_count = 2;
+    private $option_group      = 'ai-changelog-summary-settings';
 
     /* ───────────────────────── Logging ───────────────────────── */
 
@@ -274,23 +270,28 @@ class AIChangelogSummary {
     }
 
     public function render_urls_field() {
-        $urls = get_option( 'changelog_urls', [] );
-        $max  = $this->get_max_urls();
-        $urls = array_pad( $urls, $max, '' );
+        $urls  = get_option( 'changelog_urls', [] );
+        $count = max( $this->default_url_count, count( $urls ) );
+        $urls  = array_pad( $urls, $count, '' );
         ?>
-        <div id="changelog-urls-container" data-max="<?php echo esc_attr( $max ); ?>">
-            <?php for ( $i = 0; $i < $max; $i++ ) : ?>
-                <input
-                    type="url"
-                    name="changelog_urls[<?php echo $i; ?>]"
-                    value="<?php echo esc_attr( $urls[ $i ] ); ?>"
-                    class="regular-text"
-                    placeholder="Changelog URL #<?php echo $i + 1; ?>"
-                    style="margin-bottom:8px;"
-                >
+        <div id="changelog-urls-container">
+            <?php for ( $i = 0; $i < $count; $i++ ) : ?>
+                <div class="aics-url-row" style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                    <input
+                        type="url"
+                        name="changelog_urls[<?php echo $i; ?>]"
+                        value="<?php echo esc_attr( $urls[ $i ] ); ?>"
+                        class="regular-text"
+                        placeholder="Changelog URL #<?php echo $i + 1; ?>"
+                    >
+                    <?php if ( $i >= $this->default_url_count ) : ?>
+                        <button type="button" class="button button-small aics-remove-url" style="color:#b91c1c;">&times;</button>
+                    <?php endif; ?>
+                </div>
             <?php endfor; ?>
         </div>
-        <p class="description">Enter up to <?php echo esc_html( $max ); ?> changelog URLs<?php echo $max <= 2 ? ' (unlimited in Pro)' : ''; ?>.</p>
+        <button type="button" id="aics-add-url" class="button button-small" style="margin-top:4px;">+ Add URL</button>
+        <p class="description">Add as many changelog URLs as you need.</p>
         <?php
     }
 
@@ -347,8 +348,7 @@ class AIChangelogSummary {
 
     public function sanitize_changelog_urls( $input ) {
         $sanitized = [];
-        $input     = array_slice( (array) $input, 0, $this->get_max_urls() );
-        foreach ( $input as $url ) {
+        foreach ( (array) $input as $url ) {
             $url = esc_url_raw( trim( $url ) );
             if ( ! empty( $url ) ) {
                 $sanitized[] = $url;
@@ -632,7 +632,7 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
             wp_send_json_error( [ 'message' => 'Permission denied.' ] );
         }
 
-        $urls    = array_slice( get_option( 'changelog_urls', [] ), 0, $this->get_max_urls() );
+        $urls = get_option( 'changelog_urls', [] );
         if ( empty( $urls ) ) {
             wp_send_json_error( [ 'message' => 'No URLs configured.' ] );
         }
@@ -662,7 +662,7 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
             wp_send_json_error( [ 'message' => 'Permission denied.' ] );
         }
 
-        $urls       = array_slice( get_option( 'changelog_urls', [] ), 0, $this->get_max_urls() );
+        $urls       = array_filter( get_option( 'changelog_urls', [] ) );
         $email      = apply_filters( 'aics_notification_emails', get_option( 'notification_email', get_option( 'admin_email' ) ) );
         $ignore_diff = isset( $_POST['ignore_diff'] ) && $_POST['ignore_diff'] === '1';
 

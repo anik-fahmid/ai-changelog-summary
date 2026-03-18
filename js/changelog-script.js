@@ -174,6 +174,24 @@ jQuery(document).ready(function ($) {
         });
     });
 
+    /* ───────────── Dynamic URL Fields (Add/Remove) ───────────── */
+
+    var urlContainer = $('#changelog-urls-container');
+    if (urlContainer.length) {
+        $('#aics-add-url').on('click', function () {
+            var count = urlContainer.find('input[type="url"]').length;
+            var html = '<div class="aics-url-row" style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">' +
+                '<input type="url" name="changelog_urls[' + count + ']" value="" class="regular-text" placeholder="Changelog URL #' + (count + 1) + '">' +
+                '<button type="button" class="button button-small aics-remove-url" style="color:#b91c1c;">&times;</button>' +
+                '</div>';
+            urlContainer.append(html);
+        });
+
+        $(document).on('click', '.aics-remove-url', function () {
+            $(this).closest('.aics-url-row').remove();
+        });
+    }
+
     /* ───────────── Dashboard Widget Refresh ───────────── */
 
     $(document).on('click', '#aics-widget-refresh', function () {
