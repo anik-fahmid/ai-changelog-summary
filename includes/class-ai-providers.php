@@ -150,6 +150,13 @@ Analyze this content carefully and provide a precise response:";
     }
 
     /**
+     * Get the configured max output tokens.
+     */
+    private static function get_max_tokens() {
+        return (int) get_option( 'aics_max_tokens', 2048 );
+    }
+
+    /**
      * Dispatch to the correct provider.
      *
      * @param string $content    Extracted page content.
@@ -196,7 +203,7 @@ Analyze this content carefully and provide a precise response:";
                 'temperature'    => 0.2,
                 'topK'           => 40,
                 'topP'           => 0.95,
-                'maxOutputTokens' => 2048,
+                'maxOutputTokens' => self::get_max_tokens(),
             ],
         ];
 
@@ -241,7 +248,7 @@ Analyze this content carefully and provide a precise response:";
                 ],
             ],
             'temperature' => 0.2,
-            'max_tokens'  => 2048,
+            'max_tokens'  => self::get_max_tokens(),
         ];
 
         $response = wp_remote_post( $url, [
@@ -281,7 +288,7 @@ Analyze this content carefully and provide a precise response:";
 
         $data = [
             'model'      => $model,
-            'max_tokens' => 2048,
+            'max_tokens' => self::get_max_tokens(),
             'messages'   => [
                 [
                     'role'    => 'user',
