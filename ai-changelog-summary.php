@@ -71,10 +71,6 @@ class AIChangelogSummary {
     /* ───────────────────────── Cron Schedules ───────────────── */
 
     public function add_custom_schedules( $schedules ) {
-        $schedules['daily'] = [
-            'interval' => DAY_IN_SECONDS,
-            'display'  => 'Once Daily',
-        ];
         $schedules['weekly'] = [
             'interval' => 7 * DAY_IN_SECONDS,
             'display'  => 'Once Weekly',
@@ -87,7 +83,7 @@ class AIChangelogSummary {
             'interval' => 30 * DAY_IN_SECONDS,
             'display'  => 'Once Monthly',
         ];
-        return $schedules;
+        return apply_filters( 'aics_cron_schedules', $schedules );
     }
 
     private function maybe_schedule_cron() {
@@ -330,7 +326,7 @@ class AIChangelogSummary {
 
     public function render_frequency_field() {
         $current = get_option( 'aics_email_frequency', 'weekly' );
-        $options = [ 'daily' => 'Daily', 'weekly' => 'Weekly', 'biweekly' => 'Every Two Weeks', 'monthly' => 'Monthly' ];
+        $options = apply_filters( 'aics_frequency_options', [ 'weekly' => 'Weekly', 'biweekly' => 'Every Two Weeks', 'monthly' => 'Monthly' ] );
         ?>
         <select name="aics_email_frequency" id="aics-frequency">
             <?php foreach ( $options as $val => $label ) : ?>
