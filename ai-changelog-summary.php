@@ -87,7 +87,7 @@ class AIChangelogSummary {
             'interval' => 30 * DAY_IN_SECONDS,
             'display'  => 'Once Monthly',
         ];
-        return apply_filters( 'aics_cron_schedules', $schedules );
+        return $schedules;
     }
 
     private function maybe_schedule_cron() {
@@ -330,7 +330,7 @@ class AIChangelogSummary {
 
     public function render_frequency_field() {
         $current = get_option( 'aics_email_frequency', 'weekly' );
-        $options = apply_filters( 'aics_frequency_options', [ 'daily' => 'Daily', 'weekly' => 'Weekly', 'biweekly' => 'Every Two Weeks', 'monthly' => 'Monthly' ] );
+        $options = [ 'daily' => 'Daily', 'weekly' => 'Weekly', 'biweekly' => 'Every Two Weeks', 'monthly' => 'Monthly' ];
         ?>
         <select name="aics_email_frequency" id="aics-frequency">
             <?php foreach ( $options as $val => $label ) : ?>
@@ -396,8 +396,6 @@ class AIChangelogSummary {
             <nav class="aics-tabs">
                 <a class="aics-tab active" data-tab="general" href="#general">General</a>
                 <a class="aics-tab" data-tab="notifications" href="#notifications">Notifications</a>
-                <a class="aics-tab" data-tab="tools" href="#tools">Tools</a>
-                <a class="aics-tab" data-tab="advanced" href="#advanced">Advanced</a>
             </nav>
 
             <!-- ============ General Tab ============ -->
@@ -434,7 +432,40 @@ class AIChangelogSummary {
                     <div id="changelog-preview"></div>
                 </div>
 
-                <?php do_action( 'aics_tab_general' ); ?>
+                <!-- Documentation -->
+                <div class="aics-card" style="margin-top:20px;">
+                    <h2>Documentation</h2>
+                    <h4>Setup Instructions:</h4>
+                    <ol>
+                        <li>Select your AI provider and enter the API key</li>
+                        <li>Enter the changelog URLs you want to monitor</li>
+                        <li>Configure the notification email address</li>
+                        <li>Set your preferred email schedule</li>
+                        <li>Use the test buttons to verify your setup</li>
+                    </ol>
+                    <h4>Change Detection:</h4>
+                    <p>The plugin stores a fingerprint of each changelog. Scheduled emails are only sent when changes are detected. Use "Fetch &amp; Email Now" to force an email regardless.</p>
+                </div>
+
+                <?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) : ?>
+                <div class="aics-card" style="margin-top:20px;">
+                    <h2>Debug Information</h2>
+                    <pre style="background:#f5f5f5;padding:10px;overflow:auto;">
+PHP Version: <?php echo PHP_VERSION; ?>
+
+WordPress Version: <?php echo get_bloginfo( 'version' ); ?>
+
+Plugin Version: <?php echo AICS_VERSION; ?>
+
+Timezone: <?php echo wp_timezone_string(); ?>
+
+Provider: <?php echo esc_html( get_option( 'aics_ai_provider', 'gemini' ) ); ?>
+
+Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; ?>
+                    </pre>
+                </div>
+                <?php endif; ?>
+
             </div>
 
             <!-- ============ Notifications Tab ============ -->
@@ -478,61 +509,7 @@ class AIChangelogSummary {
                     </div>
                 </div>
 
-                <?php do_action( 'aics_tab_notifications' ); ?>
             </div>
-
-            <!-- ============ Tools Tab ============ -->
-            <div class="aics-tab-content" id="aics-tab-tools">
-
-                <?php do_action( 'aics_tab_tools' ); ?>
-            </div>
-
-            <!-- ============ Advanced Tab ============ -->
-            <div class="aics-tab-content" id="aics-tab-advanced">
-
-                <?php do_action( 'aics_tab_advanced' ); ?>
-
-                <!-- Documentation -->
-                <div class="aics-card" style="margin-top:20px;">
-                    <h2>Documentation</h2>
-                    <h4>Setup Instructions:</h4>
-                    <ol>
-                        <li>Select your AI provider and enter the API key</li>
-                        <li>Enter the changelog URLs you want to monitor</li>
-                        <li>Configure the notification email address</li>
-                        <li>Set your preferred email schedule</li>
-                        <li>Use the test buttons above to verify your setup</li>
-                    </ol>
-                    <h4>Change Detection:</h4>
-                    <p>The plugin stores a fingerprint of each changelog. Scheduled emails are only sent when changes are detected. Use "Fetch &amp; Email Now" to force an email regardless.</p>
-                </div>
-
-                <?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) : ?>
-                <div class="aics-card" style="margin-top:20px;">
-                    <h2>Debug Information</h2>
-                    <pre style="background:#f5f5f5;padding:10px;overflow:auto;">
-PHP Version: <?php echo PHP_VERSION; ?>
-
-WordPress Version: <?php echo get_bloginfo( 'version' ); ?>
-
-Plugin Version: <?php echo AICS_VERSION; ?>
-
-Timezone: <?php echo wp_timezone_string(); ?>
-
-Provider: <?php echo esc_html( get_option( 'aics_ai_provider', 'gemini' ) ); ?>
-
-Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; ?>
-                    </pre>
-                </div>
-                <?php endif; ?>
-
-            </div>
-
-            <?php
-            // Keep legacy hooks for backward compatibility.
-            do_action( 'aics_after_settings_form' );
-            do_action( 'aics_settings_page_bottom' );
-            ?>
         </div>
         <?php
     }
@@ -682,8 +659,6 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
         // Store.
         $this->store_changelog_summary( $url, $ai_result['summary'], $content_hash );
 
-        do_action( 'aics_changelog_processed', $url, $ai_result['summary'], $content_hash, $changed );
-
         return [
             'success'      => true,
             'content'      => $content,
@@ -745,7 +720,7 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
         }
 
         $urls       = array_filter( get_option( 'changelog_urls', [] ) );
-        $email      = apply_filters( 'aics_notification_emails', get_option( 'notification_email', get_option( 'admin_email' ) ) );
+        $email      = get_option( 'notification_email', get_option( 'admin_email' ) );
         $ignore_diff = isset( $_POST['ignore_diff'] ) && $_POST['ignore_diff'] === '1';
 
         if ( empty( $urls ) ) {
@@ -802,8 +777,6 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
                     $sent = true;
                 }
             }
-
-            do_action( 'aics_after_email_sent', $email_summaries, $error_urls, $unchanged );
 
             $display_email = is_array( $email ) ? implode( ', ', $email ) : $email;
             wp_send_json_success( [
@@ -898,7 +871,7 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
 
     public function send_changelog_email() {
         $urls    = get_option( 'changelog_urls', [] );
-        $email   = apply_filters( 'aics_notification_emails', get_option( 'notification_email', get_option( 'admin_email' ) ) );
+        $email   = get_option( 'notification_email', get_option( 'admin_email' ) );
 
         if ( empty( $urls ) || empty( $email ) ) {
             $this->log_error( 'Missing settings for scheduled email.' );
@@ -949,7 +922,6 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
             $this->log_error( 'Failed to send scheduled email.', [ 'email' => $email ] );
         }
 
-        do_action( 'aics_after_email_sent', $summaries, $error_urls, $unchanged );
     }
 
     /* ───────────────────────── Dashboard Widget ───────────────── */

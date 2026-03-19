@@ -19,7 +19,7 @@ class AICS_Email_Template {
         $site_name = get_bloginfo( 'name' );
         $date      = wp_date( 'M j, Y' );
         $subject   = sprintf( '[%s] %s Changelog Summary — %s', $site_name, ucfirst( $frequency ), $date );
-        return apply_filters( 'aics_email_subject', $subject, $frequency );
+        return $subject;
     }
 
     /**
@@ -54,7 +54,7 @@ $header_html = '<tr><td style="background:linear-gradient(135deg,#4f46e5,#7c3aed
     . '<h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">Changelog Summary</h1>'
     . '<p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">' . $site_name . ' &middot; ' . $date . '</p>'
     . '</td></tr>';
-echo apply_filters( 'aics_email_header_html', $header_html, $site_name, $date );
+echo $header_html;
 ?>
 
 <!-- Body -->
@@ -136,7 +136,7 @@ $footer_html = '<tr><td style="padding:20px 40px;background-color:#f9fafb;border
     . '<p style="margin:0;font-size:12px;color:#9ca3af;">Powered by <strong>AI Changelog Summary</strong></p>'
     . '<p style="margin:6px 0 0;font-size:11px;color:#d1d5db;">To stop receiving these emails, deactivate the plugin or change the notification email in settings.</p>'
     . '</td></tr>';
-echo apply_filters( 'aics_email_footer_html', $footer_html );
+echo $footer_html;
 ?>
 
 </table>

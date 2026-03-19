@@ -28,13 +28,8 @@ If it is NOT a changelog:
 
 Analyze this content carefully and provide a precise response:";
 
-    public static function get_default_prompt() {
-        return self::$default_prompt;
-    }
-
     private static function get_prompt( $content ) {
-        $prompt = apply_filters( 'aics_ai_prompt', self::$default_prompt, $content );
-        return $prompt . "\n\n" . $content;
+        return self::$default_prompt . "\n\n" . $content;
     }
 
     /**
@@ -338,13 +333,11 @@ Analyze this content carefully and provide a precise response:";
             ];
         }
 
-        $result = [
+        return [
             'success' => true,
             'error'   => null,
             'summary' => self::format_ai_response( $text ),
         ];
-
-        return apply_filters( 'aics_ai_result', $result, $text );
     }
 
     /**
