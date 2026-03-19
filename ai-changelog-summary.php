@@ -182,6 +182,13 @@ class AIChangelogSummary {
             'sanitize_callback' => 'sanitize_text_field',
         ] );
 
+        // Max output tokens for AI responses.
+        register_setting( $this->option_group, 'aics_max_tokens', [
+            'type'              => 'integer',
+            'sanitize_callback' => 'absint',
+            'default'           => 2048,
+        ] );
+
         // Notification email.
         register_setting( $this->option_group, 'notification_email', [
             'type'              => 'string',
@@ -232,6 +239,7 @@ class AIChangelogSummary {
         // General tab fields.
         add_settings_field( 'aics_ai_provider', 'AI Provider', [ $this, 'render_provider_field' ], 'aics-general', 'aics_general_section' );
         add_settings_field( 'aics_api_keys', 'API Key', [ $this, 'render_api_key_fields' ], 'aics-general', 'aics_general_section' );
+        add_settings_field( 'aics_max_tokens', 'Max Output Tokens', [ $this, 'render_max_tokens_field' ], 'aics-general', 'aics_general_section' );
         add_settings_field( 'changelog_urls', 'Changelog URLs', [ $this, 'render_urls_field' ], 'aics-general', 'aics_general_section' );
 
         // Notifications tab fields.
@@ -277,6 +285,14 @@ class AIChangelogSummary {
                 <a href="<?php echo esc_url( $meta['link'] ); ?>" target="_blank" style="margin-left:8px;font-size:12px;">Get key &rarr;</a>
             </div>
         <?php endforeach;
+    }
+
+    public function render_max_tokens_field() {
+        $value = get_option( 'aics_max_tokens', 2048 );
+        ?>
+        <input type="number" name="aics_max_tokens" value="<?php echo esc_attr( $value ); ?>" min="512" max="8192" step="256" style="width:100px;">
+        <p class="description">Maximum tokens for AI response. Increase if summaries are getting cut off. Default: 2048.</p>
+        <?php
     }
 
     public function render_urls_field() {
