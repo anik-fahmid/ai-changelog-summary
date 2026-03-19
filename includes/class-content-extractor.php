@@ -19,6 +19,11 @@ class AICS_Content_Extractor {
     const MAX_CONTENT_LENGTH = 30000;
 
     /**
+     * Max version entries to keep per section in a changelog.
+     */
+    const MAX_VERSIONS_PER_SECTION = 5;
+
+    /**
      * Extract content from a URL using the best available strategy.
      *
      * @param string $html Raw HTML (used for local fallback).
@@ -30,6 +35,7 @@ class AICS_Content_Extractor {
         if ( ! empty( $url ) ) {
             $content = self::extract_via_jina( $url );
             if ( self::is_meaningful( $content ) ) {
+                $content = self::trim_changelog_sections( $content );
                 return self::truncate( $content );
             }
         }
@@ -234,6 +240,94 @@ class AICS_Content_Extractor {
         }
 
         return '';
+    }
+
+    /**
+     * Trim long changelogs by keeping only the latest N versions per section.
+     *
+     * Detects markdown sections (## headings) and version entries within them.
+     * This ensures multi-column changelogs (e.g. Free + Pro) both fit within
+     * the character limit instead of the Pro section being truncated entirely.
+     */
+    private static function trim_changelog_sections( $content ) {
+        if ( strlen( $content ) <= self::MAX_CONTENT_LENGTH ) {
+            return $content;
+        }
+
+        $lines    = explode( "\n", $content );
+        $sections = [];
+        $current  = [ 'header' => '', 'versions' => [], 'preamble' => [] ];
+        $in_version = false;
+        $version_lines = [];
+
+        foreach ( $lines as $line ) {
+            // Detect a major section header (## ProductName, not a version number).
+            if ( preg_match( '/^## (?!v?\d)(.+)/i', $line ) ) {
+                // Save previous version block if any.
+                if ( $in_version && ! empty( $version_lines ) ) {
+                    $current['versions'][] = $version_lines;
+                    $version_lines = [];
+                }
+                // Save previous section.
+                if ( ! empty( $current['header'] ) || ! empty( $current['versions'] ) || ! empty( $current['preamble'] ) ) {
+                    $sections[] = $current;
+                }
+                $current    = [ 'header' => $line, 'versions' => [], 'preamble' => [] ];
+                $in_version = false;
+                continue;
+            }
+
+            // Detect a version entry (## v1.2.3 or ## 1.2.3).
+            if ( preg_match( '/^## v?\d/i', $line ) ) {
+                if ( $in_version && ! empty( $version_lines ) ) {
+                    $current['versions'][] = $version_lines;
+                }
+                $version_lines = [ $line ];
+                $in_version    = true;
+                continue;
+            }
+
+            if ( $in_version ) {
+                $version_lines[] = $line;
+            } else {
+                $current['preamble'][] = $line;
+            }
+        }
+
+        // Flush last version and section.
+        if ( $in_version && ! empty( $version_lines ) ) {
+            $current['versions'][] = $version_lines;
+        }
+        $sections[] = $current;
+
+        // If no clear sections with versions detected, return as-is.
+        $has_versions = false;
+        foreach ( $sections as $s ) {
+            if ( count( $s['versions'] ) > self::MAX_VERSIONS_PER_SECTION ) {
+                $has_versions = true;
+                break;
+            }
+        }
+        if ( ! $has_versions ) {
+            return $content;
+        }
+
+        // Rebuild with only the latest N versions per section.
+        $output = [];
+        foreach ( $sections as $s ) {
+            if ( ! empty( $s['header'] ) ) {
+                $output[] = $s['header'];
+            }
+            if ( ! empty( $s['preamble'] ) ) {
+                $output[] = implode( "\n", $s['preamble'] );
+            }
+            $kept = array_slice( $s['versions'], 0, self::MAX_VERSIONS_PER_SECTION );
+            foreach ( $kept as $v ) {
+                $output[] = implode( "\n", $v );
+            }
+        }
+
+        return implode( "\n", $output );
     }
 
     private static function is_meaningful( $content ) {

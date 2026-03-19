@@ -45,20 +45,28 @@ jQuery(document).ready(function ($) {
 
     /* ───────────── Preview Changelog ───────────── */
 
-    $('#preview-changelog').on('click', function () {
-        var btn = $(this);
+    function fetchPreview(skipCache) {
+        var btn = skipCache ? $('#preview-fresh') : $('#preview-changelog');
+        var otherBtn = skipCache ? $('#preview-changelog') : $('#preview-fresh');
         var preview = $('#changelog-preview');
+        var originalText = btn.text();
 
         btn.prop('disabled', true).text('Loading...');
-        preview.html('<p>Fetching changelogs...</p>');
+        otherBtn.prop('disabled', true);
+        preview.html('<p>Fetching changelogs' + (skipCache ? ' (fresh)' : '') + '...</p>');
+
+        var data = {
+            action: 'preview_fetch_changelog',
+            security: AICS.nonce
+        };
+        if (skipCache) {
+            data.skip_cache = 1;
+        }
 
         $.ajax({
             url: AICS.ajax_url,
             type: 'POST',
-            data: {
-                action: 'preview_fetch_changelog',
-                security: AICS.nonce
-            },
+            data: data,
             success: function (response) {
                 preview.empty();
 
@@ -90,10 +98,14 @@ jQuery(document).ready(function ($) {
                 preview.html('<p style="color:#b91c1c;">Request failed. Please try again.</p>');
             },
             complete: function () {
-                btn.prop('disabled', false).text('Preview Changelog');
+                btn.prop('disabled', false).text(originalText);
+                otherBtn.prop('disabled', false);
             }
         });
-    });
+    }
+
+    $('#preview-changelog').on('click', function () { fetchPreview(false); });
+    $('#preview-fresh').on('click', function () { fetchPreview(true); });
 
     /* ───────────── Fetch & Email Now ───────────── */
 

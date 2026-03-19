@@ -399,7 +399,8 @@ class AIChangelogSummary {
                     <h2>Actions</h2>
                     <div style="margin-top:12px;">
                         <button id="preview-changelog" class="button button-primary">Preview Changelog</button>
-                        <p class="description">Fetch and preview AI summaries without sending email.</p>
+                        <button id="preview-fresh" class="button">Fetch Latest</button>
+                        <p class="description">Preview uses cached data (30 min). <strong>Fetch Latest</strong> bypasses cache.</p>
                     </div>
                     <div style="margin-top:16px;">
                         <button id="force-fetch" class="button button-primary">Fetch &amp; Email Now</button>
@@ -607,9 +608,9 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
         $provider  = get_option( 'aics_ai_provider', 'gemini' );
         $api_key   = get_option( $provider . '_api_key', '' );
 
-        // Return cache if not forced and cache is < 1 hour old.
+        // Return cache if not forced and cache is < 30 minutes old.
         if ( ! $force && $cached &&
-             ( current_time( 'timestamp' ) - $cached['timestamp'] ) < HOUR_IN_SECONDS ) {
+             ( current_time( 'timestamp' ) - $cached['timestamp'] ) < ( 30 * MINUTE_IN_SECONDS ) ) {
             return [
                 'success'      => true,
                 'content'      => 'Cached content',
@@ -700,10 +701,12 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
             wp_send_json_error( [ 'message' => 'No URLs configured.' ] );
         }
 
+        $skip_cache = ! empty( $_POST['skip_cache'] );
+
         $results = [];
         foreach ( $urls as $url ) {
             if ( empty( $url ) ) continue;
-            $result = $this->process_changelog( $url );
+            $result = $this->process_changelog( $url, $skip_cache );
             $results[] = [
                 'url'        => $url,
                 'success'    => $result['success'],

@@ -38,6 +38,15 @@ Analyze this content carefully and provide a precise response:";
     }
 
     /**
+     * Model preferences per provider (newest/best first).
+     */
+    private static $model_preferences = [
+        'gemini' => [ 'gemini-2.5-flash', 'gemini-2.0-flash' ],
+        'openai' => [ 'gpt-4o-mini', 'gpt-4o' ],
+        'claude' => [ 'claude-sonnet-4-20250514' ],
+    ];
+
+    /**
      * Available providers.
      */
     public static function get_providers() {
@@ -46,6 +55,98 @@ Analyze this content carefully and provide a precise response:";
             'openai'  => 'OpenAI',
             'claude'  => 'Anthropic Claude',
         ];
+    }
+
+    /**
+     * Resolve the best available model for a provider.
+     *
+     * Uses transient caching (1 week) and provider List Models APIs
+     * so the plugin auto-adapts when models are deprecated.
+     */
+    private static function resolve_model( $provider, $api_key ) {
+        $available   = [];
+        $preferences = self::$model_preferences[ $provider ] ?? [];
+
+        switch ( $provider ) {
+            case 'gemini':
+                $available = self::fetch_gemini_models( $api_key );
+                break;
+            case 'openai':
+                $available = self::fetch_openai_models( $api_key );
+                break;
+            case 'claude':
+                // Anthropic has no public list-models endpoint.
+                break;
+        }
+
+        if ( ! empty( $available ) ) {
+            foreach ( $preferences as $pref ) {
+                if ( in_array( $pref, $available, true ) ) {
+                    return $pref;
+                }
+            }
+
+            if ( 'gemini' === $provider ) {
+                foreach ( $available as $m ) {
+                    if ( strpos( $m, 'flash' ) !== false ) {
+                        return $m;
+                    }
+                }
+            }
+
+            if ( 'openai' === $provider ) {
+                foreach ( $available as $m ) {
+                    if ( strpos( $m, 'gpt-4o' ) !== false ) {
+                        return $m;
+                    }
+                }
+            }
+        }
+
+        return $preferences[0] ?? '';
+    }
+
+    /**
+     * Fetch available Gemini models that support generateContent.
+     */
+    private static function fetch_gemini_models( $api_key ) {
+        $response = wp_remote_get(
+            'https://generativelanguage.googleapis.com/v1/models?key=' . $api_key,
+            [ 'timeout' => 15 ]
+        );
+        if ( is_wp_error( $response ) ) {
+            return [];
+        }
+
+        $body   = json_decode( wp_remote_retrieve_body( $response ), true );
+        $models = [];
+        foreach ( $body['models'] ?? [] as $m ) {
+            $methods = $m['supportedGenerationMethods'] ?? [];
+            if ( in_array( 'generateContent', $methods, true ) ) {
+                $models[] = str_replace( 'models/', '', $m['name'] );
+            }
+        }
+        return $models;
+    }
+
+    /**
+     * Fetch available OpenAI models.
+     */
+    private static function fetch_openai_models( $api_key ) {
+        $response = wp_remote_get( 'https://api.openai.com/v1/models', [
+            'headers' => [ 'Authorization' => 'Bearer ' . $api_key ],
+            'timeout' => 15,
+        ] );
+        if ( is_wp_error( $response ) ) {
+            return [];
+        }
+
+        $body   = json_decode( wp_remote_retrieve_body( $response ), true );
+        $models = [];
+        foreach ( $body['data'] ?? [] as $m ) {
+            $models[] = $m['id'];
+        }
+        return $models;
     }
 
     /**
@@ -80,7 +181,8 @@ Analyze this content carefully and provide a precise response:";
      * Google Gemini.
      */
     private static function summarize_with_gemini( $content, $api_key ) {
-        $url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' . $api_key;
+        $model = self::resolve_model( 'gemini', $api_key );
+        $url   = 'https://generativelanguage.googleapis.com/v1/models/' . $model . ':generateContent?key=' . $api_key;
 
         $data = [
             'contents' => [
@@ -94,7 +196,7 @@ Analyze this content carefully and provide a precise response:";
                 'temperature'    => 0.2,
                 'topK'           => 40,
                 'topP'           => 0.95,
-                'maxOutputTokens' => 1024,
+                'maxOutputTokens' => 2048,
             ],
         ];
 
@@ -112,7 +214,7 @@ Analyze this content carefully and provide a precise response:";
         $result = json_decode( $body, true );
 
         if ( isset( $result['error'] ) ) {
-            return self::error( 'Gemini API error: ' . $result['error']['message'] );
+            return self::error( 'Gemini API error: ' . ( $result['error']['message'] ?? '' ) );
         }
 
         $text = $result['candidates'][0]['content']['parts'][0]['text'] ?? null;
@@ -127,10 +229,11 @@ Analyze this content carefully and provide a precise response:";
      * OpenAI (gpt-4o-mini).
      */
     private static function summarize_with_openai( $content, $api_key ) {
-        $url = 'https://api.openai.com/v1/chat/completions';
+        $model = self::resolve_model( 'openai', $api_key );
+        $url   = 'https://api.openai.com/v1/chat/completions';
 
         $data = [
-            'model'       => 'gpt-4o-mini',
+            'model'       => $model,
             'messages'    => [
                 [
                     'role'    => 'user',
@@ -138,7 +241,7 @@ Analyze this content carefully and provide a precise response:";
                 ],
             ],
             'temperature' => 0.2,
-            'max_tokens'  => 1024,
+            'max_tokens'  => 2048,
         ];
 
         $response = wp_remote_post( $url, [
@@ -173,11 +276,12 @@ Analyze this content carefully and provide a precise response:";
      * Anthropic Claude (claude-sonnet-4-20250514).
      */
     private static function summarize_with_claude( $content, $api_key ) {
-        $url = 'https://api.anthropic.com/v1/messages';
+        $model = self::resolve_model( 'claude', $api_key );
+        $url   = 'https://api.anthropic.com/v1/messages';
 
         $data = [
-            'model'      => 'claude-sonnet-4-20250514',
-            'max_tokens' => 1024,
+            'model'      => $model,
+            'max_tokens' => 2048,
             'messages'   => [
                 [
                     'role'    => 'user',
@@ -287,6 +391,7 @@ Analyze this content carefully and provide a precise response:";
                 break;
 
             case 'claude':
+                $claude_model = self::resolve_model( 'claude', $api_key );
                 $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', [
                     'headers' => [
                         'Content-Type'      => 'application/json',
@@ -294,7 +399,7 @@ Analyze this content carefully and provide a precise response:";
                         'anthropic-version' => '2023-06-01',
                     ],
                     'body'    => wp_json_encode( [
-                        'model'      => 'claude-sonnet-4-20250514',
+                        'model'      => $claude_model,
                         'max_tokens' => 10,
                         'messages'   => [ [ 'role' => 'user', 'content' => 'Hi' ] ],
                     ] ),
@@ -304,8 +409,9 @@ Analyze this content carefully and provide a precise response:";
 
             case 'gemini':
             default:
-                $url      = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' . $api_key;
-                $response = wp_remote_post( $url, [
+                $gemini_model = self::resolve_model( 'gemini', $api_key );
+                $url          = 'https://generativelanguage.googleapis.com/v1/models/' . $gemini_model . ':generateContent?key=' . $api_key;
+                $response     = wp_remote_post( $url, [
                     'headers' => [ 'Content-Type' => 'application/json' ],
                     'body'    => wp_json_encode( [
                         'contents' => [ [ 'parts' => [ [ 'text' => 'Test' ] ] ] ],
