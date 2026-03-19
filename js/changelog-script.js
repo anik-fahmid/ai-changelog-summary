@@ -6,6 +6,24 @@ jQuery(document).ready(function ($) {
         return;
     }
 
+    /* ───────────── Tab Switching ───────────── */
+
+    $('.aics-tab').on('click', function (e) {
+        e.preventDefault();
+        var tab = $(this).data('tab');
+        $('.aics-tab').removeClass('active');
+        $(this).addClass('active');
+        $('.aics-tab-content').removeClass('active');
+        $('#aics-tab-' + tab).addClass('active');
+        window.location.hash = tab;
+    });
+
+    // Restore tab from URL hash on page load.
+    var hash = window.location.hash.replace('#', '');
+    if (hash && $('.aics-tab[data-tab="' + hash + '"]').length) {
+        $('.aics-tab[data-tab="' + hash + '"]').trigger('click');
+    }
+
     /* ───────────── Provider key toggle ───────────── */
 
     $('#aics-ai-provider').on('change', function () {

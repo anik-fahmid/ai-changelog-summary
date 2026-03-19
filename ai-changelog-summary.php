@@ -366,90 +366,97 @@ class AIChangelogSummary {
         <div class="wrap">
             <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
-            <!-- Settings Form -->
-            <form method="post" action="options.php">
-                <?php
-                settings_fields( $this->option_group );
-                do_settings_sections( 'ai-changelog-summary' );
-                submit_button( 'Save Settings' );
-                ?>
-            </form>
+            <!-- Tab Navigation -->
+            <nav class="aics-tabs">
+                <a class="aics-tab active" data-tab="general" href="#general">General</a>
+                <a class="aics-tab" data-tab="pro" href="#pro">Pro</a>
+            </nav>
 
-            <!-- Schedule Info -->
-            <div class="aics-card" style="margin-top:20px;">
-                <h2>Schedule</h2>
-                <p>
-                    <strong>Frequency:</strong> <?php echo esc_html( ucfirst( $freq ) ); ?><br>
-                    <strong>Next email:</strong>
+            <!-- General Tab -->
+            <div class="aics-tab-content active" id="aics-tab-general">
+
+                <!-- Settings Form -->
+                <form method="post" action="options.php">
                     <?php
-                    if ( $next_run ) {
-                        echo esc_html( wp_date( 'l, F j, Y \a\t g:i A', $next_run ) );
-                    } else {
-                        echo 'Not scheduled';
-                    }
+                    settings_fields( $this->option_group );
+                    do_settings_sections( 'ai-changelog-summary' );
+                    submit_button( 'Save Settings' );
                     ?>
-                </p>
-            </div>
+                </form>
 
-            <!-- Email Testing -->
-            <div class="aics-card" style="margin-top:20px;">
-                <h2>Email Testing</h2>
-                <div style="margin-top:12px;">
-                    <button id="test-wpmail" class="button button-secondary">Test WordPress Email</button>
-                    <span id="wpmail-test-result" style="margin-left:10px;"></span>
-                    <p class="description">Sends a basic test email to verify WordPress mail.</p>
+                <!-- Schedule Info -->
+                <div class="aics-card" style="margin-top:20px;">
+                    <h2>Schedule</h2>
+                    <p>
+                        <strong>Frequency:</strong> <?php echo esc_html( ucfirst( $freq ) ); ?><br>
+                        <strong>Next email:</strong>
+                        <?php
+                        if ( $next_run ) {
+                            echo esc_html( wp_date( 'l, F j, Y \a\t g:i A', $next_run ) );
+                        } else {
+                            echo 'Not scheduled';
+                        }
+                        ?>
+                    </p>
                 </div>
-                <div style="margin-top:12px;">
-                    <button id="send-test-email" class="button button-secondary">Send Test Changelog Email</button>
-                    <span id="test-email-result" style="margin-left:10px;"></span>
-                    <p class="description">Sends the current AI summary to your notification email.</p>
+
+                <!-- Email Testing -->
+                <div class="aics-card" style="margin-top:20px;">
+                    <h2>Email Testing</h2>
+                    <div style="margin-top:12px;">
+                        <button id="test-wpmail" class="button button-secondary">Test WordPress Email</button>
+                        <span id="wpmail-test-result" style="margin-left:10px;"></span>
+                        <p class="description">Sends a basic test email to verify WordPress mail.</p>
+                    </div>
+                    <div style="margin-top:12px;">
+                        <button id="send-test-email" class="button button-secondary">Send Test Changelog Email</button>
+                        <span id="test-email-result" style="margin-left:10px;"></span>
+                        <p class="description">Sends the current AI summary to your notification email.</p>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Actions -->
-            <div class="aics-card" style="margin-top:20px;">
-                <h2>Actions</h2>
-                <div style="margin-top:12px;">
-                    <button id="preview-changelog" class="button button-primary">Preview Changelog</button>
-                    <p class="description">Fetch and preview AI summaries without sending email.</p>
+                <!-- Actions -->
+                <div class="aics-card" style="margin-top:20px;">
+                    <h2>Actions</h2>
+                    <div style="margin-top:12px;">
+                        <button id="preview-changelog" class="button button-primary">Preview Changelog</button>
+                        <p class="description">Fetch and preview AI summaries without sending email.</p>
+                    </div>
+                    <div style="margin-top:16px;">
+                        <button id="force-fetch" class="button button-primary">Fetch &amp; Email Now</button>
+                        <label style="margin-left:12px;">
+                            <input type="checkbox" id="force-fetch-ignore-diff" value="1"> Send even if no changes detected
+                        </label>
+                        <span id="force-fetch-result" style="margin-left:10px;"></span>
+                        <p class="description">Force-fetch all changelogs (bypasses cache) and send email immediately.</p>
+                    </div>
                 </div>
-                <div style="margin-top:16px;">
-                    <button id="force-fetch" class="button button-primary">Fetch &amp; Email Now</button>
-                    <label style="margin-left:12px;">
-                        <input type="checkbox" id="force-fetch-ignore-diff" value="1"> Send even if no changes detected
-                    </label>
-                    <span id="force-fetch-result" style="margin-left:10px;"></span>
-                    <p class="description">Force-fetch all changelogs (bypasses cache) and send email immediately.</p>
+
+                <!-- Preview Area -->
+                <div class="aics-card" style="margin-top:20px;">
+                    <h2>Changelog Preview</h2>
+                    <div id="changelog-preview"></div>
                 </div>
-            </div>
 
-            <!-- Preview Area -->
-            <div class="aics-card" style="margin-top:20px;">
-                <h2>Changelog Preview</h2>
-                <div id="changelog-preview"></div>
-            </div>
+                <!-- Documentation -->
+                <div class="aics-card" style="margin-top:20px;">
+                    <h2>Documentation</h2>
+                    <h4>Setup Instructions:</h4>
+                    <ol>
+                        <li>Select your AI provider and enter the API key</li>
+                        <li>Enter the changelog URLs you want to monitor</li>
+                        <li>Configure the notification email address</li>
+                        <li>Set your preferred email schedule</li>
+                        <li>Use the test buttons above to verify your setup</li>
+                    </ol>
+                    <h4>Change Detection:</h4>
+                    <p>The plugin stores a fingerprint of each changelog. Scheduled emails are only sent when changes are detected. Use "Fetch &amp; Email Now" to force an email regardless.</p>
+                </div>
 
-            <?php do_action( 'aics_after_settings_form' ); ?>
-
-            <!-- Documentation -->
-            <div class="aics-card" style="margin-top:20px;">
-                <h2>Documentation</h2>
-                <h4>Setup Instructions:</h4>
-                <ol>
-                    <li>Select your AI provider and enter the API key</li>
-                    <li>Enter the changelog URLs you want to monitor</li>
-                    <li>Configure the notification email address</li>
-                    <li>Set your preferred email schedule</li>
-                    <li>Use the test buttons above to verify your setup</li>
-                </ol>
-                <h4>Change Detection:</h4>
-                <p>The plugin stores a fingerprint of each changelog. Scheduled emails are only sent when changes are detected. Use "Fetch &amp; Email Now" to force an email regardless.</p>
-            </div>
-
-            <?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) : ?>
-            <div class="aics-card" style="margin-top:20px;">
-                <h2>Debug Information</h2>
-                <pre style="background:#f5f5f5;padding:10px;overflow:auto;">
+                <?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) : ?>
+                <div class="aics-card" style="margin-top:20px;">
+                    <h2>Debug Information</h2>
+                    <pre style="background:#f5f5f5;padding:10px;overflow:auto;">
 PHP Version: <?php echo PHP_VERSION; ?>
 
 WordPress Version: <?php echo get_bloginfo( 'version' ); ?>
@@ -461,11 +468,47 @@ Timezone: <?php echo wp_timezone_string(); ?>
 Provider: <?php echo esc_html( get_option( 'aics_ai_provider', 'gemini' ) ); ?>
 
 Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; ?>
-                </pre>
-            </div>
-            <?php endif; ?>
+                    </pre>
+                </div>
+                <?php endif; ?>
 
-            <?php do_action( 'aics_settings_page_bottom' ); ?>
+            </div><!-- /.aics-tab-content #general -->
+
+            <!-- Pro Tab -->
+            <div class="aics-tab-content" id="aics-tab-pro">
+                <?php
+                ob_start();
+                do_action( 'aics_after_settings_form' );
+                do_action( 'aics_settings_page_bottom' );
+                $pro_content = ob_get_clean();
+
+                if ( ! empty( trim( $pro_content ) ) ) {
+                    echo $pro_content;
+                } else {
+                    ?>
+                    <div class="aics-card" style="text-align:center;padding:40px 24px;">
+                        <h2 style="margin-top:0;">Upgrade to Pro</h2>
+                        <p style="color:#555;font-size:14px;">Unlock powerful features for your changelog workflow:</p>
+                        <ul style="list-style:none;padding:0;margin:20px 0;display:inline-block;text-align:left;line-height:2;">
+                            <li>&#10003; Slack, Discord &amp; Teams notifications</li>
+                            <li>&#10003; Custom webhook integrations</li>
+                            <li>&#10003; Multiple email recipients</li>
+                            <li>&#10003; Custom AI prompt templates</li>
+                            <li>&#10003; White-label email branding</li>
+                            <li>&#10003; Summary history &amp; comparison reports</li>
+                            <li>&#10003; REST API access</li>
+                            <li>&#10003; Import / Export settings</li>
+                            <li>&#10003; Hourly schedule option</li>
+                            <li>&#10003; Auto-detect changelog pages</li>
+                        </ul>
+                        <br>
+                        <a href="https://fahmidsroadmap.com/ai-changelog-summary/" class="button button-primary button-hero" target="_blank" rel="noopener">Get Pro</a>
+                    </div>
+                    <?php
+                }
+                ?>
+            </div><!-- /.aics-tab-content #pro -->
+
         </div>
         <?php
     }
@@ -499,6 +542,19 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
         }
         ?>
         <style>
+            /* Tabs */
+            .aics-tabs { display: flex; border-bottom: 2px solid #c3c4c7; margin: 20px 0 0; }
+            .aics-tab {
+                padding: 10px 20px; cursor: pointer; text-decoration: none;
+                color: #50575e; font-weight: 500; font-size: 14px;
+                border-bottom: 2px solid transparent; margin-bottom: -2px;
+                transition: color 0.15s;
+            }
+            .aics-tab:hover, .aics-tab:focus { color: #2271b1; outline: none; box-shadow: none; }
+            .aics-tab.active { color: #2271b1; border-bottom-color: #2271b1; }
+            .aics-tab-content { display: none; padding-top: 20px; }
+            .aics-tab-content.active { display: block; }
+            /* Cards */
             .aics-card {
                 background: #fff;
                 border: 1px solid #ccd0d4;
