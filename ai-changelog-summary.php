@@ -205,30 +205,40 @@ class AIChangelogSummary {
             'default'           => 8,
         ] );
 
-        // Settings section.
+        // General section — AI provider, API keys, changelog URLs.
         add_settings_section(
-            'aics_main_section',
-            'Changelog Settings',
+            'aics_general_section',
+            'AI &amp; Changelog Sources',
             function () {
-                echo '<p>Configure your changelog sources, AI provider, and notification schedule.</p>';
+                echo '<p>Configure your AI provider and the changelog pages to monitor.</p>';
             },
-            'ai-changelog-summary'
+            'aics-general'
+        );
+
+        // Notifications section — email, schedule.
+        add_settings_section(
+            'aics_notifications_section',
+            'Email Schedule',
+            function () {
+                echo '<p>Set up notification email and delivery schedule.</p>';
+            },
+            'aics-notifications'
         );
 
         $this->add_settings_fields();
     }
 
     private function add_settings_fields() {
-        $page    = 'ai-changelog-summary';
-        $section = 'aics_main_section';
+        // General tab fields.
+        add_settings_field( 'aics_ai_provider', 'AI Provider', [ $this, 'render_provider_field' ], 'aics-general', 'aics_general_section' );
+        add_settings_field( 'aics_api_keys', 'API Key', [ $this, 'render_api_key_fields' ], 'aics-general', 'aics_general_section' );
+        add_settings_field( 'changelog_urls', 'Changelog URLs', [ $this, 'render_urls_field' ], 'aics-general', 'aics_general_section' );
 
-        add_settings_field( 'aics_ai_provider', 'AI Provider', [ $this, 'render_provider_field' ], $page, $section );
-        add_settings_field( 'aics_api_keys', 'API Key', [ $this, 'render_api_key_fields' ], $page, $section );
-        add_settings_field( 'changelog_urls', 'Changelog URLs', [ $this, 'render_urls_field' ], $page, $section );
-        add_settings_field( 'notification_email', 'Notification Email', [ $this, 'render_email_field' ], $page, $section );
-        add_settings_field( 'aics_frequency', 'Email Frequency', [ $this, 'render_frequency_field' ], $page, $section );
-        add_settings_field( 'aics_day', 'Send Day', [ $this, 'render_day_field' ], $page, $section );
-        add_settings_field( 'aics_time', 'Send Time', [ $this, 'render_time_field' ], $page, $section );
+        // Notifications tab fields.
+        add_settings_field( 'notification_email', 'Notification Email', [ $this, 'render_email_field' ], 'aics-notifications', 'aics_notifications_section' );
+        add_settings_field( 'aics_frequency', 'Email Frequency', [ $this, 'render_frequency_field' ], 'aics-notifications', 'aics_notifications_section' );
+        add_settings_field( 'aics_day', 'Send Day', [ $this, 'render_day_field' ], 'aics-notifications', 'aics_notifications_section' );
+        add_settings_field( 'aics_time', 'Send Time', [ $this, 'render_time_field' ], 'aics-notifications', 'aics_notifications_section' );
     }
 
     /* ───────────────────────── Field Renderers ───────────────── */
@@ -369,17 +379,30 @@ class AIChangelogSummary {
             <!-- Tab Navigation -->
             <nav class="aics-tabs">
                 <a class="aics-tab active" data-tab="general" href="#general">General</a>
-                <a class="aics-tab" data-tab="pro" href="#pro">Pro</a>
+                <a class="aics-tab" data-tab="notifications" href="#notifications">Notifications</a>
+                <a class="aics-tab" data-tab="tools" href="#tools">Tools</a>
+                <a class="aics-tab" data-tab="advanced" href="#advanced">Advanced</a>
             </nav>
 
-            <!-- General Tab -->
+            <!-- ============ General Tab ============ -->
             <div class="aics-tab-content active" id="aics-tab-general">
-
-                <!-- Settings Form -->
                 <form method="post" action="options.php">
                     <?php
                     settings_fields( $this->option_group );
-                    do_settings_sections( 'ai-changelog-summary' );
+                    do_settings_sections( 'aics-general' );
+                    submit_button( 'Save Settings' );
+                    ?>
+                </form>
+
+                <?php do_action( 'aics_tab_general' ); ?>
+            </div>
+
+            <!-- ============ Notifications Tab ============ -->
+            <div class="aics-tab-content" id="aics-tab-notifications">
+                <form method="post" action="options.php">
+                    <?php
+                    settings_fields( $this->option_group );
+                    do_settings_sections( 'aics-notifications' );
                     submit_button( 'Save Settings' );
                     ?>
                 </form>
@@ -415,8 +438,14 @@ class AIChangelogSummary {
                     </div>
                 </div>
 
+                <?php do_action( 'aics_tab_notifications' ); ?>
+            </div>
+
+            <!-- ============ Tools Tab ============ -->
+            <div class="aics-tab-content" id="aics-tab-tools">
+
                 <!-- Actions -->
-                <div class="aics-card" style="margin-top:20px;">
+                <div class="aics-card">
                     <h2>Actions</h2>
                     <div style="margin-top:12px;">
                         <button id="preview-changelog" class="button button-primary">Preview Changelog</button>
@@ -437,6 +466,14 @@ class AIChangelogSummary {
                     <h2>Changelog Preview</h2>
                     <div id="changelog-preview"></div>
                 </div>
+
+                <?php do_action( 'aics_tab_tools' ); ?>
+            </div>
+
+            <!-- ============ Advanced Tab ============ -->
+            <div class="aics-tab-content" id="aics-tab-advanced">
+
+                <?php do_action( 'aics_tab_advanced' ); ?>
 
                 <!-- Documentation -->
                 <div class="aics-card" style="margin-top:20px;">
@@ -472,43 +509,13 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
                 </div>
                 <?php endif; ?>
 
-            </div><!-- /.aics-tab-content #general -->
+            </div>
 
-            <!-- Pro Tab -->
-            <div class="aics-tab-content" id="aics-tab-pro">
-                <?php
-                ob_start();
-                do_action( 'aics_after_settings_form' );
-                do_action( 'aics_settings_page_bottom' );
-                $pro_content = ob_get_clean();
-
-                if ( ! empty( trim( $pro_content ) ) ) {
-                    echo $pro_content;
-                } else {
-                    ?>
-                    <div class="aics-card" style="text-align:center;padding:40px 24px;">
-                        <h2 style="margin-top:0;">Upgrade to Pro</h2>
-                        <p style="color:#555;font-size:14px;">Unlock powerful features for your changelog workflow:</p>
-                        <ul style="list-style:none;padding:0;margin:20px 0;display:inline-block;text-align:left;line-height:2;">
-                            <li>&#10003; Slack, Discord &amp; Teams notifications</li>
-                            <li>&#10003; Custom webhook integrations</li>
-                            <li>&#10003; Multiple email recipients</li>
-                            <li>&#10003; Custom AI prompt templates</li>
-                            <li>&#10003; White-label email branding</li>
-                            <li>&#10003; Summary history &amp; comparison reports</li>
-                            <li>&#10003; REST API access</li>
-                            <li>&#10003; Import / Export settings</li>
-                            <li>&#10003; Hourly schedule option</li>
-                            <li>&#10003; Auto-detect changelog pages</li>
-                        </ul>
-                        <br>
-                        <a href="https://fahmidsroadmap.com/ai-changelog-summary/" class="button button-primary button-hero" target="_blank" rel="noopener">Get Pro</a>
-                    </div>
-                    <?php
-                }
-                ?>
-            </div><!-- /.aics-tab-content #pro -->
-
+            <?php
+            // Keep legacy hooks for backward compatibility.
+            do_action( 'aics_after_settings_form' );
+            do_action( 'aics_settings_page_bottom' );
+            ?>
         </div>
         <?php
     }
