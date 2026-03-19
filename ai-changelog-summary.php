@@ -634,7 +634,7 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
         }
 
         // Extract content.
-        $content      = AICS_Content_Extractor::extract( $body );
+        $content      = AICS_Content_Extractor::extract( $body, $url );
         $content_hash = md5( $content );
 
         // Compare hash — detect changes.
