@@ -394,6 +394,29 @@ class AIChangelogSummary {
                     ?>
                 </form>
 
+                <!-- Actions -->
+                <div class="aics-card" style="margin-top:20px;">
+                    <h2>Actions</h2>
+                    <div style="margin-top:12px;">
+                        <button id="preview-changelog" class="button button-primary">Preview Changelog</button>
+                        <p class="description">Fetch and preview AI summaries without sending email.</p>
+                    </div>
+                    <div style="margin-top:16px;">
+                        <button id="force-fetch" class="button button-primary">Fetch &amp; Email Now</button>
+                        <label style="margin-left:12px;">
+                            <input type="checkbox" id="force-fetch-ignore-diff" value="1"> Send even if no changes detected
+                        </label>
+                        <span id="force-fetch-result" style="margin-left:10px;"></span>
+                        <p class="description">Force-fetch all changelogs (bypasses cache) and send email immediately.</p>
+                    </div>
+                </div>
+
+                <!-- Preview Area -->
+                <div class="aics-card" style="margin-top:20px;">
+                    <h2>Changelog Preview</h2>
+                    <div id="changelog-preview"></div>
+                </div>
+
                 <?php do_action( 'aics_tab_general' ); ?>
             </div>
 
@@ -443,29 +466,6 @@ class AIChangelogSummary {
 
             <!-- ============ Tools Tab ============ -->
             <div class="aics-tab-content" id="aics-tab-tools">
-
-                <!-- Actions -->
-                <div class="aics-card">
-                    <h2>Actions</h2>
-                    <div style="margin-top:12px;">
-                        <button id="preview-changelog" class="button button-primary">Preview Changelog</button>
-                        <p class="description">Fetch and preview AI summaries without sending email.</p>
-                    </div>
-                    <div style="margin-top:16px;">
-                        <button id="force-fetch" class="button button-primary">Fetch &amp; Email Now</button>
-                        <label style="margin-left:12px;">
-                            <input type="checkbox" id="force-fetch-ignore-diff" value="1"> Send even if no changes detected
-                        </label>
-                        <span id="force-fetch-result" style="margin-left:10px;"></span>
-                        <p class="description">Force-fetch all changelogs (bypasses cache) and send email immediately.</p>
-                    </div>
-                </div>
-
-                <!-- Preview Area -->
-                <div class="aics-card" style="margin-top:20px;">
-                    <h2>Changelog Preview</h2>
-                    <div id="changelog-preview"></div>
-                </div>
 
                 <?php do_action( 'aics_tab_tools' ); ?>
             </div>
