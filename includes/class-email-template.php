@@ -18,7 +18,8 @@ class AICS_Email_Template {
     public static function subject( $frequency = 'Weekly' ) {
         $site_name = get_bloginfo( 'name' );
         $date      = wp_date( 'M j, Y' );
-        $subject   = sprintf( '[%s] %s Changelog Summary — %s', $site_name, ucfirst( $frequency ), $date );
+        /* translators: 1: site name, 2: frequency (Daily, Weekly, etc.), 3: date */
+        $subject   = sprintf( __( '[%1$s] %2$s Changelog Summary — %3$s', 'ai-changelog-summary' ), $site_name, ucfirst( $frequency ), $date );
         return $subject;
     }
 
@@ -41,7 +42,7 @@ class AICS_Email_Template {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Changelog Summary</title>
+<title><?php echo esc_html__( 'Changelog Summary', 'ai-changelog-summary' ); ?></title>
 </head>
 <body style="margin:0;padding:0;background-color:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;">
@@ -51,10 +52,10 @@ class AICS_Email_Template {
 <!-- Header -->
 <?php
 $header_html = '<tr><td style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:30px 40px;text-align:center;">'
-    . '<h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">Changelog Summary</h1>'
-    . '<p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">' . $site_name . ' &middot; ' . $date . '</p>'
+    . '<h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">' . esc_html__( 'Changelog Summary', 'ai-changelog-summary' ) . '</h1>'
+    . '<p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">' . esc_html( $site_name ) . ' &middot; ' . esc_html( $date ) . '</p>'
     . '</td></tr>';
-echo $header_html;
+echo wp_kses_post( $header_html );
 ?>
 
 <!-- Body -->
@@ -69,7 +70,7 @@ echo $header_html;
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                     <td>
-                        <span style="display:inline-block;background-color:#dcfce7;color:#166534;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase;">Updated</span>
+                        <span style="display:inline-block;background-color:#dcfce7;color:#166534;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase;"><?php echo esc_html__( 'Updated', 'ai-changelog-summary' ); ?></span>
                     </td>
                 </tr>
                 <tr>
@@ -82,7 +83,7 @@ echo $header_html;
         </tr>
         <tr>
             <td style="padding:20px;font-size:14px;line-height:1.6;color:#374151;">
-                <?php echo $item['summary']; ?>
+                <?php echo wp_kses_post( $item['summary'] ); ?>
             </td>
         </tr>
     </table>
@@ -93,8 +94,8 @@ echo $header_html;
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:25px;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
         <tr>
             <td style="padding:15px 20px;background-color:#fffbeb;">
-                <span style="display:inline-block;background-color:#fef3c7;color:#92400e;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase;margin-bottom:8px;">No Changes</span>
-                <p style="margin:8px 0 0;font-size:13px;color:#92400e;">The following changelogs have not been updated since the last check:</p>
+                <span style="display:inline-block;background-color:#fef3c7;color:#92400e;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase;margin-bottom:8px;"><?php echo esc_html__( 'No Changes', 'ai-changelog-summary' ); ?></span>
+                <p style="margin:8px 0 0;font-size:13px;color:#92400e;"><?php echo esc_html__( 'The following changelogs have not been updated since the last check:', 'ai-changelog-summary' ); ?></p>
                 <ul style="margin:8px 0 0;padding-left:20px;">
                 <?php foreach ( $unchanged as $u ) : ?>
                     <li style="font-size:13px;color:#78716c;margin:4px 0;">
@@ -111,8 +112,8 @@ echo $header_html;
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:25px;border:1px solid #fecaca;border-radius:6px;overflow:hidden;">
         <tr>
             <td style="padding:15px 20px;background-color:#fef2f2;">
-                <span style="display:inline-block;background-color:#fee2e2;color:#991b1b;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase;margin-bottom:8px;">Errors</span>
-                <p style="margin:8px 0 0;font-size:13px;color:#991b1b;">Failed to process the following URLs:</p>
+                <span style="display:inline-block;background-color:#fee2e2;color:#991b1b;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase;margin-bottom:8px;"><?php echo esc_html__( 'Errors', 'ai-changelog-summary' ); ?></span>
+                <p style="margin:8px 0 0;font-size:13px;color:#991b1b;"><?php echo esc_html__( 'Failed to process the following URLs:', 'ai-changelog-summary' ); ?></p>
                 <ul style="margin:8px 0 0;padding-left:20px;">
                 <?php foreach ( $error_urls as $e ) : ?>
                     <li style="font-size:13px;color:#b91c1c;margin:4px 0;"><?php echo esc_html( $e ); ?></li>
@@ -124,7 +125,7 @@ echo $header_html;
 <?php endif; ?>
 
 <?php if ( empty( $summaries ) && empty( $unchanged ) && empty( $error_urls ) ) : ?>
-    <p style="text-align:center;color:#6b7280;font-size:14px;padding:20px 0;">No changelog data available.</p>
+    <p style="text-align:center;color:#6b7280;font-size:14px;padding:20px 0;"><?php echo esc_html__( 'No changelog data available.', 'ai-changelog-summary' ); ?></p>
 <?php endif; ?>
 
 </td>
@@ -133,10 +134,11 @@ echo $header_html;
 <!-- Footer -->
 <?php
 $footer_html = '<tr><td style="padding:20px 40px;background-color:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">'
-    . '<p style="margin:0;font-size:12px;color:#9ca3af;">Powered by <strong>AI Changelog Summary</strong></p>'
-    . '<p style="margin:6px 0 0;font-size:11px;color:#d1d5db;">To stop receiving these emails, deactivate the plugin or change the notification email in settings.</p>'
+    /* translators: %s: plugin name */
+    . '<p style="margin:0;font-size:12px;color:#9ca3af;">' . sprintf( esc_html__( 'Powered by %s', 'ai-changelog-summary' ), '<strong>AI Changelog Summary</strong>' ) . '</p>'
+    . '<p style="margin:6px 0 0;font-size:11px;color:#d1d5db;">' . esc_html__( 'To stop receiving these emails, deactivate the plugin or change the notification email in settings.', 'ai-changelog-summary' ) . '</p>'
     . '</td></tr>';
-echo $footer_html;
+echo wp_kses_post( $footer_html );
 ?>
 
 </table>

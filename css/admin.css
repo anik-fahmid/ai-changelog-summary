@@ -1,0 +1,455 @@
+/**
+ * AI Changelog Summary — Admin Styles
+ *
+ * Modern, Tailwind-inspired design system.
+ * Colors: Indigo-600 primary, Slate grays, subtle shadows.
+ */
+
+/* ─── CSS Variables ─── */
+:root {
+    --aics-primary: #4f46e5;
+    --aics-primary-hover: #4338ca;
+    --aics-primary-light: rgba(79, 70, 229, 0.08);
+    --aics-primary-ring: rgba(79, 70, 229, 0.25);
+    --aics-text: #1e293b;
+    --aics-text-secondary: #64748b;
+    --aics-text-muted: #94a3b8;
+    --aics-border: #e2e8f0;
+    --aics-border-hover: #cbd5e1;
+    --aics-bg: #f8fafc;
+    --aics-white: #ffffff;
+    --aics-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --aics-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --aics-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    --aics-radius: 8px;
+    --aics-radius-sm: 6px;
+    --aics-transition: 0.15s ease;
+}
+
+/* ─── Tabs ─── */
+.aics-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--aics-border);
+    margin: 24px 0 0;
+}
+
+.aics-tab {
+    padding: 12px 24px;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--aics-text-secondary);
+    font-weight: 500;
+    font-size: 14px;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color var(--aics-transition), border-color var(--aics-transition);
+    outline: none;
+}
+
+.aics-tab:hover,
+.aics-tab:focus {
+    color: var(--aics-primary);
+    outline: none;
+    box-shadow: none;
+}
+
+.aics-tab.active {
+    color: var(--aics-primary);
+    border-bottom-color: var(--aics-primary);
+    font-weight: 600;
+}
+
+.aics-tab-content {
+    display: none;
+    padding-top: 24px;
+}
+
+.aics-tab-content.active {
+    display: block;
+}
+
+/* ─── Cards ─── */
+.aics-card {
+    background: var(--aics-white);
+    border: 1px solid var(--aics-border);
+    border-radius: var(--aics-radius);
+    padding: 20px 24px;
+    box-shadow: var(--aics-shadow-sm);
+    transition: box-shadow var(--aics-transition);
+}
+
+.aics-card + .aics-card {
+    margin-top: 16px;
+}
+
+.aics-card:hover {
+    box-shadow: var(--aics-shadow);
+}
+
+.aics-card h2 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--aics-text);
+    line-height: 1.4;
+}
+
+.aics-card h4 {
+    margin: 12px 0 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--aics-text);
+}
+
+.aics-card p {
+    color: var(--aics-text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.aics-card ol,
+.aics-card ul {
+    color: var(--aics-text-secondary);
+    font-size: 13px;
+    line-height: 1.8;
+    padding-left: 20px;
+}
+
+/* ─── Forms (override WP defaults inside our settings) ─── */
+.aics-tab-content .form-table th {
+    font-weight: 500;
+    color: var(--aics-text);
+    font-size: 13px;
+    padding: 16px 10px 16px 0;
+}
+
+.aics-tab-content .form-table td {
+    padding: 12px 10px;
+}
+
+.aics-tab-content input[type="text"],
+.aics-tab-content input[type="password"],
+.aics-tab-content input[type="email"],
+.aics-tab-content input[type="number"],
+.aics-tab-content input[type="url"],
+.aics-tab-content select {
+    border: 1px solid var(--aics-border);
+    border-radius: var(--aics-radius-sm);
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--aics-text);
+    transition: border-color var(--aics-transition), box-shadow var(--aics-transition);
+    background: var(--aics-white);
+}
+
+.aics-tab-content input[type="text"]:focus,
+.aics-tab-content input[type="password"]:focus,
+.aics-tab-content input[type="email"]:focus,
+.aics-tab-content input[type="number"]:focus,
+.aics-tab-content input[type="url"]:focus,
+.aics-tab-content select:focus {
+    border-color: var(--aics-primary);
+    box-shadow: 0 0 0 3px var(--aics-primary-ring);
+    outline: none;
+}
+
+.aics-tab-content .description {
+    color: var(--aics-text-muted);
+    font-size: 12px;
+    margin-top: 6px;
+}
+
+/* ─── Buttons ─── */
+.aics-tab-content .button-primary,
+.aics-card .button-primary {
+    background: var(--aics-primary) !important;
+    border-color: var(--aics-primary) !important;
+    color: var(--aics-white) !important;
+    border-radius: var(--aics-radius-sm);
+    padding: 4px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    text-shadow: none;
+    box-shadow: var(--aics-shadow-sm);
+    transition: background var(--aics-transition), box-shadow var(--aics-transition);
+    height: auto;
+    line-height: 1.8;
+}
+
+.aics-tab-content .button-primary:hover,
+.aics-tab-content .button-primary:focus,
+.aics-card .button-primary:hover,
+.aics-card .button-primary:focus {
+    background: var(--aics-primary-hover) !important;
+    border-color: var(--aics-primary-hover) !important;
+    box-shadow: var(--aics-shadow);
+}
+
+.aics-tab-content .button-primary:disabled,
+.aics-card .button-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.aics-tab-content .button,
+.aics-card .button {
+    border-radius: var(--aics-radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    transition: border-color var(--aics-transition), color var(--aics-transition);
+    height: auto;
+    line-height: 1.8;
+    padding: 4px 16px;
+}
+
+.aics-tab-content .button:hover,
+.aics-card .button:hover {
+    border-color: var(--aics-primary);
+    color: var(--aics-primary);
+}
+
+/* Submit button (WP settings form) */
+.aics-tab-content .submit .button-primary {
+    padding: 6px 24px;
+    font-size: 13px;
+}
+
+/* ─── URL Rows ─── */
+.aics-url-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.aics-url-row input[type="url"] {
+    flex: 1;
+}
+
+.aics-url-row .button {
+    flex-shrink: 0;
+    color: #dc2626 !important;
+    border-color: #fca5a5 !important;
+    padding: 4px 12px;
+    font-size: 12px;
+}
+
+.aics-url-row .button:hover {
+    background: #fef2f2 !important;
+    border-color: #dc2626 !important;
+}
+
+#aics-add-url {
+    margin-top: 4px;
+}
+
+/* ─── API Key Rows ─── */
+.aics-api-key-row {
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.aics-api-key-row a {
+    font-size: 12px;
+    color: var(--aics-primary);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.aics-api-key-row a:hover {
+    text-decoration: underline;
+}
+
+/* ─── Changelog Preview ─── */
+.changelog-result {
+    margin-bottom: 16px;
+    padding: 16px 20px;
+    background: var(--aics-bg);
+    border: 1px solid var(--aics-border);
+    border-left: 3px solid var(--aics-primary);
+    border-radius: var(--aics-radius-sm);
+}
+
+.changelog-result h3 {
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--aics-text);
+}
+
+.changelog-result .status-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    margin-bottom: 10px;
+}
+
+.status-updated {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-unchanged {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* ─── AI Summary Content ─── */
+.ai-summary-content {
+    margin-top: 12px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--aics-text);
+}
+
+.ai-summary-content h2 {
+    font-size: 18px;
+    color: var(--aics-text);
+    border-bottom: 1px solid var(--aics-border);
+    padding-bottom: 8px;
+    margin: 0 0 12px;
+}
+
+.ai-summary-content h3 {
+    font-size: 15px;
+    color: var(--aics-text);
+    margin: 14px 0 6px;
+}
+
+.ai-summary-content h4 {
+    font-size: 13px;
+    color: var(--aics-text-secondary);
+    margin: 10px 0 4px;
+    font-weight: 600;
+}
+
+.ai-summary-content ul {
+    margin: 6px 0 14px 18px;
+    list-style: none;
+    padding: 0;
+}
+
+.ai-summary-content ul li {
+    margin: 3px 0;
+    line-height: 1.6;
+    position: relative;
+    padding-left: 14px;
+}
+
+.ai-summary-content ul li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 9px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--aics-primary);
+}
+
+/* ─── Action Buttons Group ─── */
+.aics-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* ─── Dashboard Widget ─── */
+.aics-widget-item {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--aics-border);
+}
+
+.aics-widget-item:last-child {
+    border-bottom: none;
+}
+
+.aics-widget-url {
+    font-size: 12px;
+    color: var(--aics-text-muted);
+    word-break: break-all;
+}
+
+.aics-widget-summary {
+    font-size: 13px;
+    margin-top: 6px;
+    color: var(--aics-text-secondary);
+    line-height: 1.5;
+}
+
+.aics-widget-time {
+    font-size: 11px;
+    color: var(--aics-text-muted);
+    margin-top: 4px;
+}
+
+/* ─── Debug Pre Block ─── */
+.aics-debug-pre {
+    background: var(--aics-bg);
+    border: 1px solid var(--aics-border);
+    border-radius: var(--aics-radius-sm);
+    padding: 14px 18px;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--aics-text-secondary);
+    overflow: auto;
+    margin-top: 8px;
+}
+
+/* ─── Help Tab Specific ─── */
+.aics-help-section h4 {
+    margin: 16px 0 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--aics-text);
+}
+
+.aics-help-section ol {
+    padding-left: 20px;
+}
+
+.aics-help-section ol li {
+    margin: 6px 0;
+    color: var(--aics-text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* ─── Responsive ─── */
+@media screen and (max-width: 782px) {
+    .aics-tabs {
+        flex-wrap: wrap;
+    }
+
+    .aics-tab {
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+
+    .aics-card {
+        padding: 16px;
+    }
+
+    .aics-url-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .aics-actions-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

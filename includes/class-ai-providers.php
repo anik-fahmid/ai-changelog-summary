@@ -163,7 +163,8 @@ Analyze this content carefully and provide a precise response:";
         if ( empty( $api_key ) ) {
             return [
                 'success' => false,
-                'error'   => ucfirst( $provider ) . ' API key not configured.',
+                /* translators: %s: AI provider name (Gemini, OpenAI, Claude) */
+                'error'   => sprintf( __( '%s API key not configured.', 'ai-changelog-summary' ), ucfirst( $provider ) ),
                 'summary' => null,
             ];
         }
@@ -209,19 +210,21 @@ Analyze this content carefully and provide a precise response:";
         ] );
 
         if ( is_wp_error( $response ) ) {
-            return self::error( 'Gemini request failed: ' . $response->get_error_message() );
+            /* translators: %s: error message from the HTTP request */
+            return self::error( sprintf( __( 'Gemini request failed: %s', 'ai-changelog-summary' ), $response->get_error_message() ) );
         }
 
         $body   = wp_remote_retrieve_body( $response );
         $result = json_decode( $body, true );
 
         if ( isset( $result['error'] ) ) {
-            return self::error( 'Gemini API error: ' . ( $result['error']['message'] ?? '' ) );
+            /* translators: %s: error message from Gemini API */
+            return self::error( sprintf( __( 'Gemini API error: %s', 'ai-changelog-summary' ), ( $result['error']['message'] ?? '' ) ) );
         }
 
         $text = $result['candidates'][0]['content']['parts'][0]['text'] ?? null;
         if ( ! $text ) {
-            return self::error( 'Gemini returned empty response.' );
+            return self::error( __( 'Gemini returned empty response.', 'ai-changelog-summary' ) );
         }
 
         return self::parse_ai_text( $text );
@@ -256,19 +259,21 @@ Analyze this content carefully and provide a precise response:";
         ] );
 
         if ( is_wp_error( $response ) ) {
-            return self::error( 'OpenAI request failed: ' . $response->get_error_message() );
+            /* translators: %s: error message from the HTTP request */
+            return self::error( sprintf( __( 'OpenAI request failed: %s', 'ai-changelog-summary' ), $response->get_error_message() ) );
         }
 
         $body   = wp_remote_retrieve_body( $response );
         $result = json_decode( $body, true );
 
         if ( isset( $result['error'] ) ) {
-            return self::error( 'OpenAI API error: ' . ( $result['error']['message'] ?? 'Unknown error' ) );
+            /* translators: %s: error message from OpenAI API */
+            return self::error( sprintf( __( 'OpenAI API error: %s', 'ai-changelog-summary' ), ( $result['error']['message'] ?? __( 'Unknown error', 'ai-changelog-summary' ) ) ) );
         }
 
         $text = $result['choices'][0]['message']['content'] ?? null;
         if ( ! $text ) {
-            return self::error( 'OpenAI returned empty response.' );
+            return self::error( __( 'OpenAI returned empty response.', 'ai-changelog-summary' ) );
         }
 
         return self::parse_ai_text( $text );
@@ -303,19 +308,21 @@ Analyze this content carefully and provide a precise response:";
         ] );
 
         if ( is_wp_error( $response ) ) {
-            return self::error( 'Claude request failed: ' . $response->get_error_message() );
+            /* translators: %s: error message from the HTTP request */
+            return self::error( sprintf( __( 'Claude request failed: %s', 'ai-changelog-summary' ), $response->get_error_message() ) );
         }
 
         $body   = wp_remote_retrieve_body( $response );
         $result = json_decode( $body, true );
 
         if ( isset( $result['error'] ) ) {
-            return self::error( 'Claude API error: ' . ( $result['error']['message'] ?? 'Unknown error' ) );
+            /* translators: %s: error message from Claude API */
+            return self::error( sprintf( __( 'Claude API error: %s', 'ai-changelog-summary' ), ( $result['error']['message'] ?? __( 'Unknown error', 'ai-changelog-summary' ) ) ) );
         }
 
         $text = $result['content'][0]['text'] ?? null;
         if ( ! $text ) {
-            return self::error( 'Claude returned empty response.' );
+            return self::error( __( 'Claude returned empty response.', 'ai-changelog-summary' ) );
         }
 
         return self::parse_ai_text( $text );
@@ -379,7 +386,7 @@ Analyze this content carefully and provide a precise response:";
      */
     public static function test_api_key( $provider, $api_key ) {
         if ( empty( $api_key ) ) {
-            return [ 'success' => false, 'message' => 'API key is empty.' ];
+            return [ 'success' => false, 'message' => __( 'API key is empty.', 'ai-changelog-summary' ) ];
         }
 
         switch ( $provider ) {
@@ -427,9 +434,10 @@ Analyze this content carefully and provide a precise response:";
 
         $code = wp_remote_retrieve_response_code( $response );
         if ( $code >= 200 && $code < 300 ) {
-            return [ 'success' => true, 'message' => 'API key is valid.' ];
+            return [ 'success' => true, 'message' => __( 'API key is valid.', 'ai-changelog-summary' ) ];
         }
 
-        return [ 'success' => false, 'message' => 'API returned status ' . $code ];
+        /* translators: %d: HTTP status code */
+        return [ 'success' => false, 'message' => sprintf( __( 'API returned status %d', 'ai-changelog-summary' ), $code ) ];
     }
 }
