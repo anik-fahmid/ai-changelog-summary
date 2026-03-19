@@ -132,8 +132,7 @@
 .aics-tab-content input[type="password"],
 .aics-tab-content input[type="email"],
 .aics-tab-content input[type="number"],
-.aics-tab-content input[type="url"],
-.aics-tab-content select {
+.aics-tab-content input[type="url"] {
     border: 1px solid var(--aics-border);
     border-radius: var(--aics-radius-sm);
     padding: 6px 12px;
@@ -143,11 +142,32 @@
     background: var(--aics-white);
 }
 
+.aics-tab-content select {
+    border: 1px solid var(--aics-border);
+    border-radius: var(--aics-radius-sm);
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--aics-text);
+    transition: border-color var(--aics-transition), box-shadow var(--aics-transition);
+    background: var(--aics-white);
+    -webkit-appearance: menulist;
+    appearance: menulist;
+    min-width: 180px;
+    height: auto;
+    line-height: 1.6;
+    cursor: pointer;
+}
+
 .aics-tab-content input[type="text"]:focus,
 .aics-tab-content input[type="password"]:focus,
 .aics-tab-content input[type="email"]:focus,
 .aics-tab-content input[type="number"]:focus,
-.aics-tab-content input[type="url"]:focus,
+.aics-tab-content input[type="url"]:focus {
+    border-color: var(--aics-primary);
+    box-shadow: 0 0 0 3px var(--aics-primary-ring);
+    outline: none;
+}
+
 .aics-tab-content select:focus {
     border-color: var(--aics-primary);
     box-shadow: 0 0 0 3px var(--aics-primary-ring);

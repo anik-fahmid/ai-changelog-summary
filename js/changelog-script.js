@@ -146,42 +146,13 @@ jQuery(document).ready(function ($) {
         });
     });
 
-    /* ───────────── Send Test Changelog Email ───────────── */
-
-    $('#send-test-email').on('click', function () {
-        var btn = $(this);
-        var result = $('#test-email-result');
-
-        btn.prop('disabled', true).text('Sending...');
-        result.html('');
-
-        $.ajax({
-            url: AICS.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'send_test_changelog_email',
-                security: AICS.nonce
-            },
-            success: function (response) {
-                var color = response.success ? 'green' : 'red';
-                result.html('<span style="color:' + color + ';">' + (response.data ? response.data.message : 'Error') + '</span>');
-            },
-            error: function () {
-                result.html('<span style="color:red;">Request failed.</span>');
-            },
-            complete: function () {
-                btn.prop('disabled', false).text('Send Test Changelog Email');
-            }
-        });
-    });
-
-    /* ───────────── Test WordPress Email ───────────── */
+    /* ───────────── Test Email Delivery ───────────── */
 
     $('#test-wpmail').on('click', function () {
         var btn = $(this);
         var result = $('#wpmail-test-result');
 
-        btn.prop('disabled', true).text('Testing...');
+        btn.prop('disabled', true).text('Sending...');
         result.html('');
 
         $.ajax({
@@ -199,7 +170,7 @@ jQuery(document).ready(function ($) {
                 result.html('<span style="color:red;">Request failed.</span>');
             },
             complete: function () {
-                btn.prop('disabled', false).text('Test WordPress Email');
+                btn.prop('disabled', false).text('Test Email Delivery');
             }
         });
     });

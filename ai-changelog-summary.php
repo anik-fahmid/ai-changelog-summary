@@ -25,8 +25,9 @@ require_once AICS_PATH . 'includes/class-email-template.php';
 
 class AIChangelogSummary {
 
-	private $default_url_count = 2;
-	private $option_group      = 'ai-changelog-summary-settings';
+	private $default_url_count   = 2;
+	private $general_group       = 'aics-general-settings';
+	private $notifications_group = 'aics-notifications-settings';
 
 	/* ───────────────────────── Logging ───────────────────────── */
 
@@ -49,7 +50,6 @@ class AIChangelogSummary {
 		add_action( 'wp_dashboard_setup', [ $this, 'add_dashboard_widget' ] );
 
 		add_action( 'wp_ajax_preview_fetch_changelog', [ $this, 'handle_changelog_fetch' ] );
-		add_action( 'wp_ajax_send_test_changelog_email', [ $this, 'handle_test_email' ] );
 		add_action( 'wp_ajax_test_wp_mail', [ $this, 'test_wp_mail' ] );
 		add_action( 'wp_ajax_aics_force_fetch', [ $this, 'handle_force_fetch' ] );
 
@@ -147,57 +147,64 @@ class AIChangelogSummary {
 	/* ───────────────────────── Settings Registration ─────────── */
 
 	public function init_settings() {
-		register_setting( $this->option_group, 'changelog_urls', [
+		/* ── General group ── */
+		register_setting( $this->general_group, 'changelog_urls', [
 			'type'              => 'array',
 			'sanitize_callback' => [ $this, 'sanitize_changelog_urls' ],
 		] );
-
-		register_setting( $this->option_group, 'aics_ai_provider', [
+		register_setting( $this->general_group, 'aics_ai_provider', [
 			'type'              => 'string',
 			'sanitize_callback' => 'sanitize_text_field',
 			'default'           => 'gemini',
 		] );
-
-		register_setting( $this->option_group, 'gemini_api_key', [
+		register_setting( $this->general_group, 'gemini_api_key', [
 			'type'              => 'string',
 			'sanitize_callback' => 'sanitize_text_field',
 		] );
-		register_setting( $this->option_group, 'openai_api_key', [
+		register_setting( $this->general_group, 'openai_api_key', [
 			'type'              => 'string',
 			'sanitize_callback' => 'sanitize_text_field',
 		] );
-		register_setting( $this->option_group, 'claude_api_key', [
+		register_setting( $this->general_group, 'claude_api_key', [
 			'type'              => 'string',
 			'sanitize_callback' => 'sanitize_text_field',
 		] );
-
-		register_setting( $this->option_group, 'aics_max_tokens', [
+		register_setting( $this->general_group, 'aics_max_tokens', [
 			'type'              => 'integer',
 			'sanitize_callback' => 'absint',
 			'default'           => 2048,
 		] );
 
-		register_setting( $this->option_group, 'notification_email', [
+		/* ── Notifications group ── */
+		register_setting( $this->notifications_group, 'notification_email', [
 			'type'              => 'string',
 			'sanitize_callback' => 'sanitize_email',
 		] );
-
-		register_setting( $this->option_group, 'aics_email_frequency', [
+		register_setting( $this->notifications_group, 'aics_email_from_name', [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+		] );
+		register_setting( $this->notifications_group, 'aics_email_from_address', [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_email',
+		] );
+		register_setting( $this->notifications_group, 'aics_email_frequency', [
 			'type'              => 'string',
 			'sanitize_callback' => 'sanitize_text_field',
 			'default'           => 'weekly',
 		] );
-		register_setting( $this->option_group, 'aics_email_day', [
+		register_setting( $this->notifications_group, 'aics_email_day', [
 			'type'              => 'string',
 			'sanitize_callback' => 'sanitize_text_field',
 			'default'           => 'monday',
 		] );
-		register_setting( $this->option_group, 'aics_email_time', [
+		register_setting( $this->notifications_group, 'aics_email_time', [
 			'type'              => 'integer',
 			'sanitize_callback' => 'absint',
 			'default'           => 8,
 		] );
 
+		/* ── Sections ── */
 		add_settings_section(
 			'aics_general_section',
 			esc_html__( 'AI & Changelog Sources', 'ai-changelog-summary' ),
@@ -209,9 +216,9 @@ class AIChangelogSummary {
 
 		add_settings_section(
 			'aics_notifications_section',
-			esc_html__( 'Email Schedule', 'ai-changelog-summary' ),
+			esc_html__( 'Email Settings', 'ai-changelog-summary' ),
 			function () {
-				echo '<p>' . esc_html__( 'Set up notification email and delivery schedule.', 'ai-changelog-summary' ) . '</p>';
+				echo '<p>' . esc_html__( 'Set up notification email, sender details, and delivery schedule.', 'ai-changelog-summary' ) . '</p>';
 			},
 			'aics-notifications'
 		);
@@ -220,12 +227,16 @@ class AIChangelogSummary {
 	}
 
 	private function add_settings_fields() {
+		/* ── General fields ── */
 		add_settings_field( 'aics_ai_provider', esc_html__( 'AI Provider', 'ai-changelog-summary' ), [ $this, 'render_provider_field' ], 'aics-general', 'aics_general_section' );
 		add_settings_field( 'aics_api_keys', esc_html__( 'API Key', 'ai-changelog-summary' ), [ $this, 'render_api_key_fields' ], 'aics-general', 'aics_general_section' );
 		add_settings_field( 'aics_max_tokens', esc_html__( 'Max Output Tokens', 'ai-changelog-summary' ), [ $this, 'render_max_tokens_field' ], 'aics-general', 'aics_general_section' );
 		add_settings_field( 'changelog_urls', esc_html__( 'Changelog URLs', 'ai-changelog-summary' ), [ $this, 'render_urls_field' ], 'aics-general', 'aics_general_section' );
 
+		/* ── Notification fields ── */
 		add_settings_field( 'notification_email', esc_html__( 'Notification Email', 'ai-changelog-summary' ), [ $this, 'render_email_field' ], 'aics-notifications', 'aics_notifications_section' );
+		add_settings_field( 'aics_email_from_name', esc_html__( 'From Name', 'ai-changelog-summary' ), [ $this, 'render_from_name_field' ], 'aics-notifications', 'aics_notifications_section' );
+		add_settings_field( 'aics_email_from_address', esc_html__( 'From Email', 'ai-changelog-summary' ), [ $this, 'render_from_address_field' ], 'aics-notifications', 'aics_notifications_section' );
 		add_settings_field( 'aics_frequency', esc_html__( 'Email Frequency', 'ai-changelog-summary' ), [ $this, 'render_frequency_field' ], 'aics-notifications', 'aics_notifications_section' );
 		add_settings_field( 'aics_day', esc_html__( 'Send Day', 'ai-changelog-summary' ), [ $this, 'render_day_field' ], 'aics-notifications', 'aics_notifications_section' );
 		add_settings_field( 'aics_time', esc_html__( 'Send Time', 'ai-changelog-summary' ), [ $this, 'render_time_field' ], 'aics-notifications', 'aics_notifications_section' );
@@ -272,9 +283,12 @@ class AIChangelogSummary {
 	}
 
 	public function render_max_tokens_field() {
-		$value = get_option( 'aics_max_tokens', 2048 );
+		$value = (int) get_option( 'aics_max_tokens', 2048 );
+		if ( $value < 512 ) {
+			$value = 2048;
+		}
 		?>
-		<input type="number" name="aics_max_tokens" value="<?php echo esc_attr( $value ); ?>" min="512" max="8192" step="256" class="small-text">
+		<input type="number" name="aics_max_tokens" value="<?php echo esc_attr( $value ); ?>" min="512" max="8192" step="256" class="regular-text" style="max-width:200px;">
 		<p class="description"><?php esc_html_e( 'Maximum tokens for AI response. Increase if summaries are getting cut off. Default: 2048.', 'ai-changelog-summary' ); ?></p>
 		<?php
 	}
@@ -312,6 +326,23 @@ class AIChangelogSummary {
 		$email = get_option( 'notification_email', get_option( 'admin_email' ) );
 		?>
 		<input type="email" name="notification_email" value="<?php echo esc_attr( $email ); ?>" class="regular-text" placeholder="<?php esc_attr_e( 'Email for notifications', 'ai-changelog-summary' ); ?>">
+		<p class="description"><?php esc_html_e( 'The email address that receives changelog notifications.', 'ai-changelog-summary' ); ?></p>
+		<?php
+	}
+
+	public function render_from_name_field() {
+		$value = get_option( 'aics_email_from_name', '' );
+		?>
+		<input type="text" name="aics_email_from_name" value="<?php echo esc_attr( $value ); ?>" class="regular-text" placeholder="<?php echo esc_attr( get_bloginfo( 'name' ) ); ?>">
+		<p class="description"><?php esc_html_e( 'Sender name for emails. Leave empty to use your site name.', 'ai-changelog-summary' ); ?></p>
+		<?php
+	}
+
+	public function render_from_address_field() {
+		$value = get_option( 'aics_email_from_address', '' );
+		?>
+		<input type="email" name="aics_email_from_address" value="<?php echo esc_attr( $value ); ?>" class="regular-text" placeholder="<?php echo esc_attr( get_option( 'admin_email' ) ); ?>">
+		<p class="description"><?php esc_html_e( 'Sender email address. Leave empty to use WordPress default.', 'ai-changelog-summary' ); ?></p>
 		<?php
 	}
 
@@ -395,7 +426,7 @@ class AIChangelogSummary {
 			<div class="aics-tab-content active" id="aics-tab-general" role="tabpanel">
 				<form method="post" action="options.php">
 					<?php
-					settings_fields( $this->option_group );
+					settings_fields( $this->general_group );
 					do_settings_sections( 'aics-general' );
 					submit_button( esc_html__( 'Save Settings', 'ai-changelog-summary' ) );
 					?>
@@ -429,6 +460,13 @@ class AIChangelogSummary {
 						<span id="force-fetch-result" style="margin-left:10px;"></span>
 						<p class="description"><?php esc_html_e( 'Force-fetch all changelogs (bypasses cache) and send email immediately.', 'ai-changelog-summary' ); ?></p>
 					</div>
+					<div style="margin-top:16px;">
+						<div class="aics-actions-group">
+							<button id="test-wpmail" class="button"><?php esc_html_e( 'Test Email Delivery', 'ai-changelog-summary' ); ?></button>
+							<span id="wpmail-test-result"></span>
+						</div>
+						<p class="description"><?php esc_html_e( 'Sends a test email to your notification address to verify WordPress mail is working.', 'ai-changelog-summary' ); ?></p>
+					</div>
 				</div>
 
 				<div class="aics-card">
@@ -441,7 +479,7 @@ class AIChangelogSummary {
 			<div class="aics-tab-content" id="aics-tab-notifications" role="tabpanel">
 				<form method="post" action="options.php">
 					<?php
-					settings_fields( $this->option_group );
+					settings_fields( $this->notifications_group );
 					do_settings_sections( 'aics-notifications' );
 					submit_button( esc_html__( 'Save Settings', 'ai-changelog-summary' ) );
 					?>
@@ -460,20 +498,6 @@ class AIChangelogSummary {
 						}
 						?>
 					</p>
-				</div>
-
-				<div class="aics-card">
-					<h2><?php esc_html_e( 'Email Testing', 'ai-changelog-summary' ); ?></h2>
-					<div style="margin-top:12px;">
-						<button id="test-wpmail" class="button button-secondary"><?php esc_html_e( 'Test WordPress Email', 'ai-changelog-summary' ); ?></button>
-						<span id="wpmail-test-result" style="margin-left:10px;"></span>
-						<p class="description"><?php esc_html_e( 'Sends a basic test email to verify WordPress mail.', 'ai-changelog-summary' ); ?></p>
-					</div>
-					<div style="margin-top:12px;">
-						<button id="send-test-email" class="button button-secondary"><?php esc_html_e( 'Send Test Changelog Email', 'ai-changelog-summary' ); ?></button>
-						<span id="test-email-result" style="margin-left:10px;"></span>
-						<p class="description"><?php esc_html_e( 'Sends the current AI summary to your notification email.', 'ai-changelog-summary' ); ?></p>
-					</div>
 				</div>
 			</div>
 
@@ -717,7 +741,7 @@ class AIChangelogSummary {
 			$freq    = get_option( 'aics_email_frequency', 'weekly' );
 			$subject = AICS_Email_Template::subject( $freq );
 			$body    = AICS_Email_Template::render( $email_summaries, $error_urls, $unchanged );
-			$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+			$headers = $this->get_email_headers();
 
 			$recipients = is_array( $email ) ? $email : [ $email ];
 			$sent       = false;
@@ -747,57 +771,7 @@ class AIChangelogSummary {
 		}
 	}
 
-	/* ───────────────────────── AJAX: Test Emails ──────────────── */
-
-	public function handle_test_email() {
-		check_ajax_referer( 'aics_nonce', 'security' );
-
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( [ 'message' => __( 'Permission denied.', 'ai-changelog-summary' ) ] );
-		}
-
-		$urls  = get_option( 'changelog_urls', [] );
-		$email = get_option( 'notification_email', get_option( 'admin_email' ) );
-
-		if ( empty( $urls ) ) {
-			wp_send_json_error( [ 'message' => __( 'No changelog URLs configured.', 'ai-changelog-summary' ) ] );
-		}
-		if ( empty( $email ) ) {
-			wp_send_json_error( [ 'message' => __( 'No notification email configured.', 'ai-changelog-summary' ) ] );
-		}
-
-		$summaries  = [];
-		$error_urls = [];
-
-		foreach ( $urls as $url ) {
-			if ( empty( $url ) ) {
-				continue;
-			}
-			$result = $this->process_changelog( $url );
-			if ( $result['success'] && ! empty( $result['ai_summary'] ) ) {
-				$summaries[] = [ 'url' => $url, 'summary' => $result['ai_summary'] ];
-			} else {
-				$error_urls[] = $url;
-			}
-		}
-
-		if ( empty( $summaries ) ) {
-			wp_send_json_error( [ 'message' => __( 'No summaries could be generated.', 'ai-changelog-summary' ), 'error_urls' => $error_urls ] );
-		}
-
-		$subject = '[Test] ' . AICS_Email_Template::subject( get_option( 'aics_email_frequency', 'weekly' ) );
-		$body    = AICS_Email_Template::render( $summaries, $error_urls );
-		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
-
-		$sent = wp_mail( $email, $subject, $body, $headers );
-
-		if ( $sent ) {
-			/* translators: %s: email address */
-			wp_send_json_success( [ 'message' => sprintf( __( 'Test email sent to %s', 'ai-changelog-summary' ), $email ) ] );
-		} else {
-			wp_send_json_error( [ 'message' => __( 'Failed to send email.', 'ai-changelog-summary' ) ] );
-		}
-	}
+	/* ───────────────────────── AJAX: Test Email ──────────────── */
 
 	public function test_wp_mail() {
 		check_ajax_referer( 'aics_nonce', 'security' );
@@ -808,17 +782,50 @@ class AIChangelogSummary {
 
 		$email   = get_option( 'notification_email', get_option( 'admin_email' ) );
 		$subject = __( 'Test Email from AI Changelog Summary', 'ai-changelog-summary' );
-		$message = __( 'This is a test email to verify wp_mail is working correctly.', 'ai-changelog-summary' );
-		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+		$message = '<p>' . __( 'This is a test email to verify your WordPress email configuration is working correctly.', 'ai-changelog-summary' ) . '</p>'
+			. '<p>' . __( 'If you received this email, your setup is ready to send changelog notifications.', 'ai-changelog-summary' ) . '</p>';
+		$headers = $this->get_email_headers();
+
+		// Capture wp_mail errors.
+		$mail_error = '';
+		$error_handler = function ( $wp_error ) use ( &$mail_error ) {
+			$mail_error = $wp_error->get_error_message();
+		};
+		add_action( 'wp_mail_failed', $error_handler );
 
 		$sent = wp_mail( $email, $subject, $message, $headers );
+
+		remove_action( 'wp_mail_failed', $error_handler );
 
 		if ( $sent ) {
 			/* translators: %s: email address */
 			wp_send_json_success( [ 'message' => sprintf( __( 'Test email sent to %s', 'ai-changelog-summary' ), $email ) ] );
 		} else {
-			wp_send_json_error( [ 'message' => __( 'Failed to send email. Check your WordPress email config.', 'ai-changelog-summary' ) ] );
+			$error_msg = ! empty( $mail_error )
+				? $mail_error
+				: __( 'wp_mail() returned false. Check your WordPress email configuration or install an SMTP plugin.', 'ai-changelog-summary' );
+			wp_send_json_error( [ 'message' => $error_msg ] );
 		}
+	}
+
+	/**
+	 * Build email headers with configured From name/address.
+	 */
+	private function get_email_headers() {
+		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+
+		$from_name    = get_option( 'aics_email_from_name', '' );
+		$from_address = get_option( 'aics_email_from_address', '' );
+
+		if ( ! empty( $from_name ) && ! empty( $from_address ) ) {
+			$headers[] = 'From: ' . sanitize_text_field( $from_name ) . ' <' . sanitize_email( $from_address ) . '>';
+		} elseif ( ! empty( $from_address ) ) {
+			$headers[] = 'From: ' . sanitize_email( $from_address );
+		} elseif ( ! empty( $from_name ) ) {
+			$headers[] = 'From: ' . sanitize_text_field( $from_name ) . ' <' . get_option( 'admin_email' ) . '>';
+		}
+
+		return $headers;
 	}
 
 	/* ───────────────────────── Cron: Send Email ───────────────── */
@@ -863,7 +870,7 @@ class AIChangelogSummary {
 		$freq    = get_option( 'aics_email_frequency', 'weekly' );
 		$subject = AICS_Email_Template::subject( $freq );
 		$body    = AICS_Email_Template::render( $summaries, $error_urls, $unchanged );
-		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+		$headers = $this->get_email_headers();
 
 		$recipients = is_array( $email ) ? $email : [ $email ];
 		$sent       = false;

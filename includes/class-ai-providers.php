@@ -55,8 +55,8 @@ Analyze this content carefully and provide a precise response:";
     /**
      * Resolve the best available model for a provider.
      *
-     * Uses transient caching (1 week) and provider List Models APIs
-     * so the plugin auto-adapts when models are deprecated.
+     * Queries provider List Models APIs so the plugin auto-adapts
+     * when models are deprecated.
      */
     private static function resolve_model( $provider, $api_key ) {
         $available   = [];
