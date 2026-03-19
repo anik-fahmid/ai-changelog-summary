@@ -607,9 +607,9 @@ Next Cron: <?php echo $next_run ? wp_date( 'Y-m-d H:i:s', $next_run ) : 'None'; 
         $provider  = get_option( 'aics_ai_provider', 'gemini' );
         $api_key   = get_option( $provider . '_api_key', '' );
 
-        // Return cache if not forced and cache is < 24 h old.
+        // Return cache if not forced and cache is < 1 hour old.
         if ( ! $force && $cached &&
-             ( current_time( 'timestamp' ) - $cached['timestamp'] ) < DAY_IN_SECONDS ) {
+             ( current_time( 'timestamp' ) - $cached['timestamp'] ) < HOUR_IN_SECONDS ) {
             return [
                 'success'      => true,
                 'content'      => 'Cached content',
