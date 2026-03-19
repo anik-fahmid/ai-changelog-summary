@@ -53,6 +53,8 @@ class AIChangelogSummary {
 		add_action( 'wp_ajax_test_wp_mail', [ $this, 'test_wp_mail' ] );
 		add_action( 'wp_ajax_aics_force_fetch', [ $this, 'handle_force_fetch' ] );
 
+		add_action( 'phpmailer_init', [ $this, 'configure_smtp' ] );
+
 		add_filter( 'cron_schedules', [ $this, 'add_custom_schedules' ] );
 		$this->maybe_schedule_cron();
 		add_action( 'aics_changelog_email', [ $this, 'send_changelog_email' ] );
@@ -204,6 +206,35 @@ class AIChangelogSummary {
 			'default'           => 8,
 		] );
 
+		/* ── SMTP settings ── */
+		register_setting( $this->notifications_group, 'aics_smtp_enabled', [
+			'type'              => 'integer',
+			'sanitize_callback' => 'absint',
+			'default'           => 0,
+		] );
+		register_setting( $this->notifications_group, 'aics_smtp_host', [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+		] );
+		register_setting( $this->notifications_group, 'aics_smtp_port', [
+			'type'              => 'integer',
+			'sanitize_callback' => 'absint',
+			'default'           => 587,
+		] );
+		register_setting( $this->notifications_group, 'aics_smtp_encryption', [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+			'default'           => 'tls',
+		] );
+		register_setting( $this->notifications_group, 'aics_smtp_username', [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+		] );
+		register_setting( $this->notifications_group, 'aics_smtp_password', [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+		] );
+
 		/* ── Sections ── */
 		add_settings_section(
 			'aics_general_section',
@@ -219,6 +250,15 @@ class AIChangelogSummary {
 			esc_html__( 'Email Settings', 'ai-changelog-summary' ),
 			function () {
 				echo '<p>' . esc_html__( 'Set up notification email, sender details, and delivery schedule.', 'ai-changelog-summary' ) . '</p>';
+			},
+			'aics-notifications'
+		);
+
+		add_settings_section(
+			'aics_smtp_section',
+			esc_html__( 'SMTP Configuration', 'ai-changelog-summary' ),
+			function () {
+				echo '<p>' . esc_html__( 'Configure a custom SMTP server to ensure emails are delivered to real inboxes. Required on local environments or when WordPress default mail fails.', 'ai-changelog-summary' ) . '</p>';
 			},
 			'aics-notifications'
 		);
@@ -240,6 +280,14 @@ class AIChangelogSummary {
 		add_settings_field( 'aics_frequency', esc_html__( 'Email Frequency', 'ai-changelog-summary' ), [ $this, 'render_frequency_field' ], 'aics-notifications', 'aics_notifications_section' );
 		add_settings_field( 'aics_day', esc_html__( 'Send Day', 'ai-changelog-summary' ), [ $this, 'render_day_field' ], 'aics-notifications', 'aics_notifications_section' );
 		add_settings_field( 'aics_time', esc_html__( 'Send Time', 'ai-changelog-summary' ), [ $this, 'render_time_field' ], 'aics-notifications', 'aics_notifications_section' );
+
+		/* ── SMTP fields ── */
+		add_settings_field( 'aics_smtp_enabled', esc_html__( 'Enable SMTP', 'ai-changelog-summary' ), [ $this, 'render_smtp_enabled_field' ], 'aics-notifications', 'aics_smtp_section' );
+		add_settings_field( 'aics_smtp_host', esc_html__( 'SMTP Host', 'ai-changelog-summary' ), [ $this, 'render_smtp_host_field' ], 'aics-notifications', 'aics_smtp_section' );
+		add_settings_field( 'aics_smtp_port', esc_html__( 'SMTP Port', 'ai-changelog-summary' ), [ $this, 'render_smtp_port_field' ], 'aics-notifications', 'aics_smtp_section' );
+		add_settings_field( 'aics_smtp_encryption', esc_html__( 'Encryption', 'ai-changelog-summary' ), [ $this, 'render_smtp_encryption_field' ], 'aics-notifications', 'aics_smtp_section' );
+		add_settings_field( 'aics_smtp_username', esc_html__( 'Username', 'ai-changelog-summary' ), [ $this, 'render_smtp_username_field' ], 'aics-notifications', 'aics_smtp_section' );
+		add_settings_field( 'aics_smtp_password', esc_html__( 'Password', 'ai-changelog-summary' ), [ $this, 'render_smtp_password_field' ], 'aics-notifications', 'aics_smtp_section' );
 	}
 
 	/* ───────────────────────── Field Renderers ───────────────── */
@@ -343,6 +391,64 @@ class AIChangelogSummary {
 		?>
 		<input type="email" name="aics_email_from_address" value="<?php echo esc_attr( $value ); ?>" class="regular-text" placeholder="<?php echo esc_attr( get_option( 'admin_email' ) ); ?>">
 		<p class="description"><?php esc_html_e( 'Sender email address. Leave empty to use WordPress default.', 'ai-changelog-summary' ); ?></p>
+		<?php
+	}
+
+	public function render_smtp_enabled_field() {
+		$enabled = (int) get_option( 'aics_smtp_enabled', 0 );
+		?>
+		<label>
+			<input type="checkbox" name="aics_smtp_enabled" id="aics-smtp-enabled" value="1" <?php checked( 1, $enabled ); ?>>
+			<?php esc_html_e( 'Use custom SMTP server for sending emails', 'ai-changelog-summary' ); ?>
+		</label>
+		<p class="description"><?php esc_html_e( 'Enable this if emails are not arriving (e.g. on local environments). WordPress default mail uses PHP mail() which is often blocked.', 'ai-changelog-summary' ); ?></p>
+		<?php
+	}
+
+	public function render_smtp_host_field() {
+		$value = get_option( 'aics_smtp_host', '' );
+		?>
+		<input type="text" name="aics_smtp_host" value="<?php echo esc_attr( $value ); ?>" class="regular-text" placeholder="smtp.gmail.com">
+		<p class="description"><?php esc_html_e( 'Your SMTP server hostname. e.g. smtp.gmail.com, smtp.mailgun.org, smtp.sendgrid.net', 'ai-changelog-summary' ); ?></p>
+		<?php
+	}
+
+	public function render_smtp_port_field() {
+		$value = (int) get_option( 'aics_smtp_port', 587 );
+		?>
+		<input type="number" name="aics_smtp_port" value="<?php echo esc_attr( $value ); ?>" min="1" max="65535" class="small-text">
+		<p class="description"><?php esc_html_e( 'Common ports: 587 (TLS), 465 (SSL), 25 (none).', 'ai-changelog-summary' ); ?></p>
+		<?php
+	}
+
+	public function render_smtp_encryption_field() {
+		$current = get_option( 'aics_smtp_encryption', 'tls' );
+		$options = [
+			'tls'  => __( 'TLS (recommended)', 'ai-changelog-summary' ),
+			'ssl'  => __( 'SSL', 'ai-changelog-summary' ),
+			'none' => __( 'None', 'ai-changelog-summary' ),
+		];
+		?>
+		<select name="aics_smtp_encryption">
+			<?php foreach ( $options as $val => $label ) : ?>
+				<option value="<?php echo esc_attr( $val ); ?>" <?php selected( $current, $val ); ?>><?php echo esc_html( $label ); ?></option>
+			<?php endforeach; ?>
+		</select>
+		<?php
+	}
+
+	public function render_smtp_username_field() {
+		$value = get_option( 'aics_smtp_username', '' );
+		?>
+		<input type="text" name="aics_smtp_username" value="<?php echo esc_attr( $value ); ?>" class="regular-text" autocomplete="off" placeholder="<?php esc_attr_e( 'your@email.com', 'ai-changelog-summary' ); ?>">
+		<?php
+	}
+
+	public function render_smtp_password_field() {
+		$value = get_option( 'aics_smtp_password', '' );
+		?>
+		<input type="password" name="aics_smtp_password" value="<?php echo esc_attr( $value ); ?>" class="regular-text" autocomplete="new-password">
+		<p class="description"><?php esc_html_e( 'For Gmail, use an App Password (not your account password). Two-factor authentication must be enabled.', 'ai-changelog-summary' ); ?></p>
 		<?php
 	}
 
@@ -768,6 +874,40 @@ class AIChangelogSummary {
 				'unchanged' => count( $unchanged ),
 				'errors'    => count( $error_urls ),
 			] );
+		}
+	}
+
+	/* ───────────────────────── SMTP ───────────────────────────── */
+
+	public function configure_smtp( $phpmailer ) {
+		if ( ! (int) get_option( 'aics_smtp_enabled', 0 ) ) {
+			return;
+		}
+
+		$host       = get_option( 'aics_smtp_host', '' );
+		$port       = (int) get_option( 'aics_smtp_port', 587 );
+		$encryption = get_option( 'aics_smtp_encryption', 'tls' );
+		$username   = get_option( 'aics_smtp_username', '' );
+		$password   = get_option( 'aics_smtp_password', '' );
+
+		if ( empty( $host ) ) {
+			return;
+		}
+
+		$phpmailer->isSMTP();
+		$phpmailer->Host       = sanitize_text_field( $host );
+		$phpmailer->Port       = $port;
+		$phpmailer->SMTPAuth   = ! empty( $username );
+		$phpmailer->Username   = sanitize_text_field( $username );
+		$phpmailer->Password   = $password;
+
+		if ( 'ssl' === $encryption ) {
+			$phpmailer->SMTPSecure = 'ssl';
+		} elseif ( 'tls' === $encryption ) {
+			$phpmailer->SMTPSecure = 'tls';
+		} else {
+			$phpmailer->SMTPSecure = '';
+			$phpmailer->SMTPAutoTLS = false;
 		}
 	}
 

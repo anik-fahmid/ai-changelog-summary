@@ -32,6 +32,20 @@ jQuery(document).ready(function ($) {
         $('.aics-api-key-row[data-provider="' + provider + '"]').show();
     });
 
+    /* ───────────── SMTP fields toggle ───────────── */
+
+    function toggleSmtpFields() {
+        var rows = $('#aics-smtp-enabled').closest('tr').nextAll('tr');
+        if ($('#aics-smtp-enabled').is(':checked')) {
+            rows.show();
+        } else {
+            rows.hide();
+        }
+    }
+
+    $('#aics-smtp-enabled').on('change', toggleSmtpFields);
+    toggleSmtpFields(); // Run on page load.
+
     /* ───────────── Frequency → day visibility ───────────── */
 
     $('#aics-frequency').on('change', function () {
