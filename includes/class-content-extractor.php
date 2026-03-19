@@ -1,6 +1,10 @@
 <?php
 /**
  * Multi-strategy content extractor for changelog pages.
+ *
+ * Strategy 1: Jina Reader API — converts any URL to clean markdown.
+ * Strategy 2: Local DOMDocument — XPath selectors + noise stripping.
+ * Strategy 3: Raw body text fallback.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -12,7 +16,127 @@ class AICS_Content_Extractor {
     /**
      * Maximum characters to return to stay within AI token limits.
      */
-    const MAX_CONTENT_LENGTH = 15000;
+    const MAX_CONTENT_LENGTH = 30000;
+
+    /**
+     * Extract content from a URL using the best available strategy.
+     *
+     * @param string $html Raw HTML (used for local fallback).
+     * @param string $url  Original URL (used for Jina Reader).
+     * @return string Extracted content (markdown or HTML).
+     */
+    public static function extract( $html, $url = '' ) {
+        // Strategy 1: Jina Reader API — clean markdown from any page.
+        if ( ! empty( $url ) ) {
+            $content = self::extract_via_jina( $url );
+            if ( self::is_meaningful( $content ) ) {
+                return self::truncate( $content );
+            }
+        }
+
+        // Strategy 2: Local DOMDocument extraction.
+        if ( ! empty( $html ) ) {
+            $content = self::extract_from_html( $html );
+            if ( ! empty( $content ) ) {
+                return $content;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Fetch clean markdown via Jina Reader API.
+     *
+     * @param string $url The page URL.
+     * @return string Markdown content or empty on failure.
+     */
+    private static function extract_via_jina( $url ) {
+        $jina_url = 'https://r.jina.ai/' . $url;
+
+        $response = wp_remote_get( $jina_url, [
+            'timeout'    => 30,
+            'headers'    => [
+                'Accept' => 'text/plain',
+            ],
+            'user-agent' => 'AI Changelog Summary WordPress Plugin',
+        ] );
+
+        if ( is_wp_error( $response ) ) {
+            return '';
+        }
+
+        $code = wp_remote_retrieve_response_code( $response );
+        if ( $code < 200 || $code >= 300 ) {
+            return '';
+        }
+
+        $body = wp_remote_retrieve_body( $response );
+        if ( empty( $body ) ) {
+            return '';
+        }
+
+        // Jina returns markdown with a metadata header — strip it.
+        $body = self::strip_jina_metadata( $body );
+
+        return $body;
+    }
+
+    /**
+     * Strip Jina Reader metadata header (Title:, URL:, etc.) from response.
+     */
+    private static function strip_jina_metadata( $text ) {
+        // Jina prepends lines like "Title: ...", "URL Source: ...", "Markdown Content:".
+        // Find where the actual content starts.
+        $lines = explode( "\n", $text );
+        $start = 0;
+
+        for ( $i = 0, $len = min( 20, count( $lines ) ); $i < $len; $i++ ) {
+            $line = trim( $lines[ $i ] );
+            if ( preg_match( '/^(Title|URL Source|Markdown Content)\s*:/i', $line ) ) {
+                $start = $i + 1;
+            } elseif ( $start > 0 && $line === '' ) {
+                $start = $i + 1;
+                break;
+            }
+        }
+
+        return implode( "\n", array_slice( $lines, $start ) );
+    }
+
+    /**
+     * Local HTML-based extraction (fallback).
+     */
+    private static function extract_from_html( $html ) {
+        $dom = new DOMDocument();
+        @$dom->loadHTML(
+            mb_convert_encoding( $html, 'HTML-ENTITIES', 'UTF-8' ),
+            LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        $xpath = new DOMXPath( $dom );
+
+        // Try changelog-specific selectors.
+        $content = self::try_selectors( $dom, $xpath );
+        if ( self::is_meaningful( $content ) ) {
+            return self::truncate( $content );
+        }
+
+        // Strip noise and extract body text.
+        $content = self::extract_clean_body( $dom, $xpath );
+        if ( self::is_meaningful( $content ) ) {
+            return self::truncate( $content );
+        }
+
+        // Fall back to raw body text.
+        $body = $xpath->query( '//body' );
+        if ( $body->length > 0 ) {
+            $content = $body->item( 0 )->textContent;
+            $content = self::normalize_whitespace( $content );
+            return self::truncate( $content );
+        }
+
+        return self::truncate( strip_tags( $html ) );
+    }
 
     /**
      * Selectors likely to contain changelog content (XPath).
@@ -33,17 +157,11 @@ class AICS_Content_Extractor {
         "//*[@role='main']",
     ];
 
-    /**
-     * Tags to strip before extracting body text.
-     */
     private static $noise_tags = [
         'script', 'style', 'nav', 'header', 'footer',
         'noscript', 'iframe', 'svg', 'form',
     ];
 
-    /**
-     * Classes/IDs that are typically non-content.
-     */
     private static $noise_selectors = [
         "//*[contains(@class, 'menu')]",
         "//*[contains(@class, 'nav')]",
@@ -62,48 +180,6 @@ class AICS_Content_Extractor {
         "//*[contains(@id, 'menu')]",
         "//*[contains(@id, 'nav')]",
     ];
-
-    /**
-     * Extract meaningful content from an HTML page.
-     *
-     * @param string $html Raw HTML.
-     * @return string Extracted text/HTML content.
-     */
-    public static function extract( $html ) {
-        if ( empty( $html ) ) {
-            return '';
-        }
-
-        $dom = new DOMDocument();
-        @$dom->loadHTML(
-            mb_convert_encoding( $html, 'HTML-ENTITIES', 'UTF-8' ),
-            LIBXML_NOERROR | LIBXML_NOWARNING
-        );
-        $xpath = new DOMXPath( $dom );
-
-        // Strategy A: Try changelog-specific selectors.
-        $content = self::try_selectors( $dom, $xpath );
-        if ( self::is_meaningful( $content ) ) {
-            return self::truncate( $content );
-        }
-
-        // Strategy B: Strip noise and extract body text.
-        $content = self::extract_clean_body( $dom, $xpath );
-        if ( self::is_meaningful( $content ) ) {
-            return self::truncate( $content );
-        }
-
-        // Strategy C: Fall back to raw body text.
-        $body = $xpath->query( '//body' );
-        if ( $body->length > 0 ) {
-            $content = $body->item( 0 )->textContent;
-            $content = self::normalize_whitespace( $content );
-            return self::truncate( $content );
-        }
-
-        // Last resort: return cleaned HTML.
-        return self::truncate( strip_tags( $html ) );
-    }
 
     /**
      * Try changelog-specific selectors and return combined HTML.
@@ -126,7 +202,6 @@ class AICS_Content_Extractor {
      * Strip noise elements and return cleaned body content.
      */
     private static function extract_clean_body( $dom, $xpath ) {
-        // Remove noise tags.
         foreach ( self::$noise_tags as $tag ) {
             $elements = $dom->getElementsByTagName( $tag );
             $to_remove = [];
@@ -140,7 +215,6 @@ class AICS_Content_Extractor {
             }
         }
 
-        // Remove noise selectors.
         foreach ( self::$noise_selectors as $selector ) {
             $nodes = $xpath->query( $selector );
             $to_remove = [];
@@ -162,33 +236,29 @@ class AICS_Content_Extractor {
         return '';
     }
 
-    /**
-     * Check if extracted content is long enough to be meaningful.
-     */
     private static function is_meaningful( $content ) {
         $text = strip_tags( $content );
         $text = self::normalize_whitespace( $text );
         return strlen( $text ) >= 100;
     }
 
-    /**
-     * Collapse whitespace.
-     */
     private static function normalize_whitespace( $text ) {
         return trim( preg_replace( '/\s+/', ' ', $text ) );
     }
 
-    /**
-     * Truncate content to max length.
-     */
     private static function truncate( $content ) {
         if ( strlen( $content ) > self::MAX_CONTENT_LENGTH ) {
             $content = substr( $content, 0, self::MAX_CONTENT_LENGTH );
-            // Don't cut in the middle of an HTML tag.
-            $last_open = strrpos( $content, '<' );
-            $last_close = strrpos( $content, '>' );
-            if ( $last_open !== false && ( $last_close === false || $last_open > $last_close ) ) {
-                $content = substr( $content, 0, $last_open );
+            // Don't cut in the middle of a markdown heading or HTML tag.
+            $last_newline = strrpos( $content, "\n" );
+            if ( $last_newline !== false && $last_newline > self::MAX_CONTENT_LENGTH - 500 ) {
+                $content = substr( $content, 0, $last_newline );
+            } else {
+                $last_open = strrpos( $content, '<' );
+                $last_close = strrpos( $content, '>' );
+                if ( $last_open !== false && ( $last_close === false || $last_open > $last_close ) ) {
+                    $content = substr( $content, 0, $last_open );
+                }
             }
         }
         return $content;
