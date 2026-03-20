@@ -1020,6 +1020,21 @@ class AIChangelogSummary {
 			$phpmailer->SMTPSecure = '';
 			$phpmailer->SMTPAutoTLS = false;
 		}
+
+		// Allow self-signed/incomplete SSL certs on shared hosts.
+		$phpmailer->SMTPOptions = [
+			'ssl' => [
+				'verify_peer'       => false,
+				'verify_peer_name'  => false,
+				'allow_self_signed' => true,
+			],
+		];
+
+		// Log SMTP debug output to PHP error log to help diagnose connection issues.
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$phpmailer->SMTPDebug = 2;
+			$phpmailer->Debugoutput = 'error_log';
+		}
 	}
 
 	public function capture_mail_error( $wp_error ) {
