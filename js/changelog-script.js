@@ -193,27 +193,17 @@ jQuery(document).ready(function ($) {
 
     var urlContainer = $('#changelog-urls-container');
     if (urlContainer.length) {
-        var maxUrls = parseInt(urlContainer.data('max'), 10) || 5;
-
-        function updateAddButton() {
-            var count = urlContainer.find('input[type="url"]').length;
-            $('#aics-add-url').prop('disabled', count >= maxUrls);
-        }
-
         $('#aics-add-url').on('click', function () {
             var count = urlContainer.find('input[type="url"]').length;
-            if (count >= maxUrls) { return; }
             var html = '<div class="aics-url-row" style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">' +
                 '<input type="url" name="changelog_urls[' + count + ']" value="" class="regular-text" placeholder="Changelog URL #' + (count + 1) + '">' +
                 '<button type="button" class="button button-small aics-remove-url" style="color:#b91c1c;">&times;</button>' +
                 '</div>';
             urlContainer.append(html);
-            updateAddButton();
         });
 
         $(document).on('click', '.aics-remove-url', function () {
             $(this).closest('.aics-url-row').remove();
-            updateAddButton();
         });
     }
 
@@ -242,19 +232,15 @@ jQuery(document).ready(function ($) {
             },
             success: function (response) {
                 if (response.success && response.data.urls) {
-                    var added = 0;
                     response.data.urls.forEach(function (url) {
                         var count = urlContainer.find('input[type="url"]').length;
-                        if (count >= maxUrls) { return; }
                         var html = '<div class="aics-url-row" style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">' +
                             '<input type="url" name="changelog_urls[' + count + ']" value="' + url + '" class="regular-text">' +
                             '<button type="button" class="button button-small aics-remove-url" style="color:#b91c1c;">&times;</button>' +
                             '</div>';
                         urlContainer.append(html);
-                        added++;
                     });
-                    updateAddButton();
-                    result.html('<span style="color:green;">' + added + ' URL(s) added.</span>');
+                    result.html('<span style="color:green;">' + response.data.message + ' Added to the list.</span>');
                     $('#aics-detect-domain').val('');
                 } else {
                     result.html('<span style="color:#b91c1c;">' + (response.data ? response.data.message : 'No changelogs found.') + '</span>');

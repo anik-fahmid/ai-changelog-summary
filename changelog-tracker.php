@@ -26,7 +26,7 @@ require_once AICS_PATH . 'includes/class-auto-detect.php';
 
 class AIChangelogSummary {
 
-	private $default_url_count   = 2;
+	private $default_url_count   = 4;
 	private $max_url_count       = 5;
 	private $general_group       = 'aics-general-settings';
 	private $notifications_group = 'aics-notifications-settings';
@@ -367,7 +367,7 @@ class AIChangelogSummary {
 			<?php endfor; ?>
 		</div>
 		<div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-			<button type="button" id="aics-add-url" class="button button-small"<?php echo $at_limit ? ' disabled' : ''; ?>>
+			<button type="button" id="aics-add-url" class="button button-small">
 				<?php esc_html_e( '+ Add URL', 'changelog-tracker' ); ?>
 			</button>
 			<span style="color:#999;">|</span>
