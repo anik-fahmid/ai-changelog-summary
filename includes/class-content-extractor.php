@@ -142,7 +142,7 @@ class AICS_Content_Extractor {
             return self::truncate( $content );
         }
 
-        return self::truncate( strip_tags( $html ) );
+        return self::truncate( wp_strip_all_tags( $html ) );
     }
 
     /**
@@ -332,7 +332,7 @@ class AICS_Content_Extractor {
     }
 
     private static function is_meaningful( $content ) {
-        $text = strip_tags( $content );
+        $text = wp_strip_all_tags( $content );
         $text = self::normalize_whitespace( $text );
         return strlen( $text ) >= 100;
     }
