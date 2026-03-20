@@ -9,6 +9,10 @@ Author URI: https://fahmidsroadmap.com/
 Text Domain: changelog-tracker
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
+Requires at least: 5.6
+Tested up to: 6.7
+Requires PHP: 7.4
+Stable tag: 2.0
 */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -704,6 +708,12 @@ class AIChangelogSummary {
 					</ol>
 					<h4><?php esc_html_e( 'Change Detection', 'changelog-tracker' ); ?></h4>
 					<p><?php esc_html_e( 'The plugin stores a fingerprint of each changelog. Scheduled emails are only sent when changes are detected. Use "Fetch & Email Now" to force an email regardless.', 'changelog-tracker' ); ?></p>
+					<h4><?php esc_html_e( 'External Services', 'changelog-tracker' ); ?></h4>
+					<p><?php esc_html_e( 'This plugin connects to the following external services:', 'changelog-tracker' ); ?></p>
+					<ul>
+						<li><strong>Jina Reader (r.jina.ai)</strong> &mdash; <?php esc_html_e( 'Converts changelog pages to clean text before AI processing. The URL of each tracked page is sent to Jina on every fetch.', 'changelog-tracker' ); ?> <a href="https://jina.ai/privacy-policy/" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Privacy Policy', 'changelog-tracker' ); ?></a></li>
+						<li><strong>Google Gemini / OpenAI / Anthropic Claude</strong> &mdash; <?php esc_html_e( 'Changelog page content is sent to your chosen AI provider to generate the summary. No personal data is transmitted.', 'changelog-tracker' ); ?></li>
+					</ul>
 				</div>
 
 				<?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) : ?>

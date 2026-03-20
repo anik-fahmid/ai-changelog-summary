@@ -116,7 +116,7 @@ class AICS_Content_Extractor {
      */
     private static function extract_from_html( $html ) {
         $dom = new DOMDocument();
-        @$dom->loadHTML(
+        $dom->loadHTML(
             mb_convert_encoding( $html, 'HTML-ENTITIES', 'UTF-8' ),
             LIBXML_NOERROR | LIBXML_NOWARNING
         );
