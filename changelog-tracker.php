@@ -831,6 +831,10 @@ class AIChangelogSummary {
 	/* ───────────────────────── AJAX: Preview ──────────────────── */
 
 	public function handle_changelog_fetch() {
+		// Each URL can take up to 2 min (fetch + Jina + AI). Disable PHP time limit.
+		set_time_limit( 0 );
+		ignore_user_abort( true );
+
 		check_ajax_referer( 'aics_nonce', 'security' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
@@ -865,6 +869,10 @@ class AIChangelogSummary {
 	/* ───────────────────────── AJAX: Force Fetch & Email ──────── */
 
 	public function handle_force_fetch() {
+		// Each URL can take up to 2 min (fetch + Jina + AI). Disable PHP time limit.
+		set_time_limit( 0 );
+		ignore_user_abort( true );
+
 		check_ajax_referer( 'aics_nonce', 'security' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
