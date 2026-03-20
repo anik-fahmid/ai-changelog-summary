@@ -565,7 +565,10 @@ class AIChangelogSummary {
 							</label>
 						</div>
 						<span id="force-fetch-result" style="margin-left:10px;"></span>
-						<p class="description"><?php esc_html_e( 'Force-fetch all changelogs (bypasses cache) and send email immediately.', 'changelog-tracker' ); ?></p>
+						<p class="description">
+							<?php esc_html_e( 'Force-fetch all changelogs and send email immediately.', 'changelog-tracker' ); ?>
+							<strong><?php esc_html_e( 'This will not affect your scheduled emails', 'changelog-tracker' ); ?></strong> — <?php esc_html_e( 'it is for testing only and does not update the change tracking used by the scheduler.', 'changelog-tracker' ); ?>
+						</p>
 					</div>
 					<div style="margin-top:16px;">
 						<div class="aics-actions-group">
@@ -794,7 +797,11 @@ class AIChangelogSummary {
 			];
 		}
 
-		$this->store_changelog_summary( $url, $ai_result['summary'], $content_hash );
+		// Only persist hash/summary for scheduled runs.
+		// Force-fetch is a manual test and must not affect scheduled change detection.
+		if ( ! $force ) {
+			$this->store_changelog_summary( $url, $ai_result['summary'], $content_hash );
+		}
 
 		return [
 			'success'      => true,
