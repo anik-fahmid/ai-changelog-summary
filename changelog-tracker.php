@@ -30,6 +30,7 @@ class AIChangelogSummary {
 	private $max_url_count       = 5;
 	private $general_group       = 'aics-general-settings';
 	private $notifications_group = 'aics-notifications-settings';
+	private $last_mail_error     = '';
 
 	/* ───────────────────────── Logging ───────────────────────── */
 
@@ -56,6 +57,7 @@ class AIChangelogSummary {
 		add_action( 'wp_ajax_aics_force_fetch', [ $this, 'handle_force_fetch' ] );
 
 		add_action( 'phpmailer_init', [ $this, 'configure_smtp' ] );
+		add_action( 'wp_mail_failed', [ $this, 'capture_mail_error' ] );
 
 		add_filter( 'cron_schedules', [ $this, 'add_custom_schedules' ] );
 		$this->maybe_schedule_cron();
@@ -959,7 +961,7 @@ class AIChangelogSummary {
 			$display_email = is_array( $email ) ? implode( ', ', $email ) : $email;
 			wp_send_json_success( [
 				/* translators: %s: email address(es) */
-				'message'   => $sent ? sprintf( __( 'Email sent to %s', 'changelog-tracker' ), $display_email ) : __( 'Failed to send email.', 'changelog-tracker' ),
+				'message'   => $sent ? sprintf( __( 'Email sent to %s', 'changelog-tracker' ), $display_email ) : __( 'Failed to send email.', 'changelog-tracker' ) . ( $this->last_mail_error ? ' — ' . $this->last_mail_error : '' ),
 				'sent'      => $sent,
 				'changed'   => count( $summaries ),
 				'unchanged' => count( $unchanged ),
@@ -1019,6 +1021,10 @@ class AIChangelogSummary {
 		}
 	}
 
+	public function capture_mail_error( $wp_error ) {
+		$this->last_mail_error = $wp_error->get_error_message();
+	}
+
 	/* ───────────────────────── AJAX: Test Email ──────────────── */
 
 	public function test_wp_mail() {
@@ -1029,7 +1035,7 @@ class AIChangelogSummary {
 		}
 
 		$email   = get_option( 'notification_email', get_option( 'admin_email' ) );
-		$subject = __( 'Test Email from AI Changelog Summary', 'changelog-tracker' );
+		$subject = __( 'Test Email from Changelog Tracker', 'changelog-tracker' );
 		$message = '<p>' . __( 'This is a test email to verify your WordPress email configuration is working correctly.', 'changelog-tracker' ) . '</p>'
 			. '<p>' . __( 'If you received this email, your setup is ready to send changelog notifications.', 'changelog-tracker' ) . '</p>';
 		$headers = $this->get_email_headers();
