@@ -63,9 +63,10 @@ class AICS_Content_Extractor {
         $response = wp_remote_get( $jina_url, [
             'timeout'    => 30,
             'headers'    => [
-                'Accept' => 'text/plain',
+                'Accept'     => 'text/plain',
+                'x-no-cache' => 'true',
             ],
-            'user-agent' => 'AI Changelog Summary WordPress Plugin',
+            'user-agent' => 'Changelog Tracker WordPress Plugin',
         ] );
 
         if ( is_wp_error( $response ) ) {
