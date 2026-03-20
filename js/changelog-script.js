@@ -207,6 +207,54 @@ jQuery(document).ready(function ($) {
         });
     }
 
+    /* ───────────── Auto Detect Changelog URL ───────────── */
+
+    $('#aics-detect-url').on('click', function () {
+        var btn    = $(this);
+        var domain = $('#aics-detect-domain').val().trim();
+        var result = $('#aics-detect-result');
+
+        if (!domain) {
+            result.html('<span style="color:#b91c1c;">Please enter a domain.</span>');
+            return;
+        }
+
+        btn.prop('disabled', true).text('Detecting...');
+        result.html('');
+
+        $.ajax({
+            url: AICS.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'aics_detect_changelog',
+                security: AICS.nonce,
+                domain: domain
+            },
+            success: function (response) {
+                if (response.success && response.data.urls) {
+                    response.data.urls.forEach(function (url) {
+                        var count = urlContainer.find('input[type="url"]').length;
+                        var html = '<div class="aics-url-row" style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">' +
+                            '<input type="url" name="changelog_urls[' + count + ']" value="' + url + '" class="regular-text">' +
+                            '<button type="button" class="button button-small aics-remove-url" style="color:#b91c1c;">&times;</button>' +
+                            '</div>';
+                        urlContainer.append(html);
+                    });
+                    result.html('<span style="color:green;">' + response.data.message + ' Added to the list.</span>');
+                    $('#aics-detect-domain').val('');
+                } else {
+                    result.html('<span style="color:#b91c1c;">' + (response.data ? response.data.message : 'No changelogs found.') + '</span>');
+                }
+            },
+            error: function () {
+                result.html('<span style="color:#b91c1c;">Request failed.</span>');
+            },
+            complete: function () {
+                btn.prop('disabled', false).text('Auto Detect');
+            }
+        });
+    });
+
     /* ───────────── Dashboard Widget Refresh ───────────── */
 
     $(document).on('click', '#aics-widget-refresh', function () {

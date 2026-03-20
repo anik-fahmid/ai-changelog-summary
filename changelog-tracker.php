@@ -22,6 +22,7 @@ define( 'AICS_URL', plugin_dir_url( __FILE__ ) );
 require_once AICS_PATH . 'includes/class-content-extractor.php';
 require_once AICS_PATH . 'includes/class-ai-providers.php';
 require_once AICS_PATH . 'includes/class-email-template.php';
+require_once AICS_PATH . 'includes/class-auto-detect.php';
 
 class AIChangelogSummary {
 
@@ -363,10 +364,18 @@ class AIChangelogSummary {
 				</div>
 			<?php endfor; ?>
 		</div>
-		<button type="button" id="aics-add-url" class="button button-small">
-			<?php esc_html_e( '+ Add URL', 'changelog-tracker' ); ?>
-		</button>
-		<p class="description"><?php esc_html_e( 'Add as many changelog URLs as you need.', 'changelog-tracker' ); ?></p>
+		<div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+			<button type="button" id="aics-add-url" class="button button-small">
+				<?php esc_html_e( '+ Add URL', 'changelog-tracker' ); ?>
+			</button>
+			<span style="color:#999;">|</span>
+			<input type="url" id="aics-detect-domain" class="regular-text" placeholder="<?php esc_attr_e( 'Enter domain to auto-detect changelog URL', 'changelog-tracker' ); ?>" style="max-width:300px;">
+			<button type="button" id="aics-detect-url" class="button button-secondary">
+				<?php esc_html_e( 'Auto Detect', 'changelog-tracker' ); ?>
+			</button>
+			<span id="aics-detect-result" style="font-size:13px;"></span>
+		</div>
+		<p class="description"><?php esc_html_e( 'Add URLs manually or use Auto Detect to find changelog pages on a domain.', 'changelog-tracker' ); ?></p>
 		<?php
 	}
 
