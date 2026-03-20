@@ -12,11 +12,11 @@ AI-powered changelog tracking that monitors plugin/service release pages and ema
 
 == Description ==
 
-**Changelog Tracker** monitors up to 4 changelog URLs (plugin pages, SaaS apps, documentation sites) and uses AI to generate plain-English summaries of what changed. Summaries are delivered to your inbox on your chosen schedule or on demand.
+**Changelog Tracker** monitors changelog URLs (plugin pages, SaaS apps, documentation sites) and uses AI to generate plain-English summaries of what changed. Summaries are delivered to your inbox on your chosen schedule or on demand.
 
 = Key Features =
 
-* **Multi-URL tracking** — monitor up to 4 changelog pages simultaneously
+* **Multi-URL tracking** — monitor multiple changelog pages simultaneously
 * **AI summaries** — supports Google Gemini, OpenAI (GPT-4), and Anthropic Claude
 * **Scheduled emails** — daily, weekly, or bi-weekly delivery
 * **Force send** — fetch and email latest changelogs on demand (independent from scheduled emails)
@@ -57,7 +57,7 @@ No data is collected or stored by the plugin author. All external API calls are 
 2. Activate the plugin through the **Plugins** menu in WordPress
 3. Navigate to **Settings > Changelog Tracker**
 4. Enter your AI provider API key (Gemini, OpenAI, or Claude)
-5. Add up to 4 changelog URLs to track
+5. Add your changelog URLs to track
 6. Configure your notification email and schedule
 
 == Frequently Asked Questions ==
