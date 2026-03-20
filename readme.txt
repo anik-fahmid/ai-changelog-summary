@@ -2,7 +2,7 @@
 Contributors: fahmidhasananik
 Tags: changelog, ai, email notifications, release notes, automation
 Requires at least: 5.6
-Tested up to: 6.7
+Tested up to: 6.9
 Stable tag: 2.0
 Requires PHP: 7.4
 License: GPLv2 or later
