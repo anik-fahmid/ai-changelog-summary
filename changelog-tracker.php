@@ -593,11 +593,70 @@ class AIChangelogSummary {
 			<!-- ============ Notifications Tab ============ -->
 			<div class="aics-tab-content" id="aics-tab-notifications" role="tabpanel">
 				<form method="post" action="options.php">
-					<?php
-					settings_fields( $this->notifications_group );
-					do_settings_sections( 'aics-notifications' );
-					submit_button( esc_html__( 'Save Settings', 'changelog-tracker' ) );
-					?>
+					<?php settings_fields( $this->notifications_group ); ?>
+
+					<div class="aics-card">
+						<h2><?php esc_html_e( 'Email Settings', 'changelog-tracker' ); ?></h2>
+						<table class="form-table" role="presentation">
+							<tr>
+								<th scope="row"><label for="notification_email"><?php esc_html_e( 'To (Recipient Email)', 'changelog-tracker' ); ?></label></th>
+								<td><?php $this->render_email_field(); ?></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="aics_email_from_name"><?php esc_html_e( 'From Name', 'changelog-tracker' ); ?></label></th>
+								<td><?php $this->render_from_name_field(); ?></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="aics_email_from_address"><?php esc_html_e( 'From Email', 'changelog-tracker' ); ?></label></th>
+								<td><?php $this->render_from_address_field(); ?></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="aics-frequency"><?php esc_html_e( 'Email Frequency', 'changelog-tracker' ); ?></label></th>
+								<td><?php $this->render_frequency_field(); ?></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="aics-day"><?php esc_html_e( 'Send Day', 'changelog-tracker' ); ?></label></th>
+								<td><?php $this->render_day_field(); ?></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="aics-time"><?php esc_html_e( 'Send Time', 'changelog-tracker' ); ?></label></th>
+								<td><?php $this->render_time_field(); ?></td>
+							</tr>
+						</table>
+					</div>
+
+					<div class="aics-card">
+						<h2><?php esc_html_e( 'SMTP Configuration', 'changelog-tracker' ); ?></h2>
+						<p><?php esc_html_e( 'Configure a custom SMTP server to ensure emails are delivered. Required on local environments or when WordPress default mail fails.', 'changelog-tracker' ); ?></p>
+						<table class="form-table" role="presentation">
+							<tr>
+								<th scope="row"><?php esc_html_e( 'Enable SMTP', 'changelog-tracker' ); ?></th>
+								<td><?php $this->render_smtp_enabled_field(); ?></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="aics_smtp_host"><?php esc_html_e( 'SMTP Host', 'changelog-tracker' ); ?></label></th>
+								<td><?php $this->render_smtp_host_field(); ?></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="aics_smtp_port"><?php esc_html_e( 'SMTP Port', 'changelog-tracker' ); ?></label></th>
+								<td><?php $this->render_smtp_port_field(); ?></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="aics_smtp_encryption"><?php esc_html_e( 'Encryption', 'changelog-tracker' ); ?></label></th>
+								<td><?php $this->render_smtp_encryption_field(); ?></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="aics_smtp_username"><?php esc_html_e( 'Username', 'changelog-tracker' ); ?></label></th>
+								<td><?php $this->render_smtp_username_field(); ?></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="aics_smtp_password"><?php esc_html_e( 'Password', 'changelog-tracker' ); ?></label></th>
+								<td><?php $this->render_smtp_password_field(); ?></td>
+							</tr>
+						</table>
+					</div>
+
+					<?php submit_button( esc_html__( 'Save Settings', 'changelog-tracker' ) ); ?>
 				</form>
 
 				<div class="aics-card">
