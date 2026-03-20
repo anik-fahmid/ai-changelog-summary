@@ -887,7 +887,7 @@ class AIChangelogSummary {
 
 			if ( $result['success'] ) {
 				if ( $result['changed'] ) {
-					$summaries[] = [ 'url' => $url, 'summary' => $result['ai_summary'] ];
+					$summaries[] = [ 'url' => $url, 'summary' => $result['ai_summary'], 'changed' => true ];
 				} else {
 					$unchanged[] = $url;
 				}
@@ -906,7 +906,7 @@ class AIChangelogSummary {
 				$stored = get_option( 'changelog_summaries', [] );
 				foreach ( $unchanged as $u ) {
 					if ( isset( $stored[ $u ] ) ) {
-						$email_summaries[] = [ 'url' => $u, 'summary' => $stored[ $u ]['summary'] ];
+						$email_summaries[] = [ 'url' => $u, 'summary' => $stored[ $u ]['summary'], 'changed' => false ];
 					}
 				}
 				$unchanged = [];

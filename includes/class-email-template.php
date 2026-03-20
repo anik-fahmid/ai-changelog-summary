@@ -70,7 +70,11 @@ echo wp_kses_post( $header_html );
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                     <td>
+                        <?php if ( $item['changed'] ?? true ) : ?>
                         <span style="display:inline-block;background-color:#dcfce7;color:#166534;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase;"><?php echo esc_html__( 'Updated', 'changelog-tracker' ); ?></span>
+                        <?php else : ?>
+                        <span style="display:inline-block;background-color:#fef3c7;color:#92400e;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase;"><?php echo esc_html__( 'No Changes', 'changelog-tracker' ); ?></span>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <tr>
@@ -135,7 +139,7 @@ echo wp_kses_post( $header_html );
 <?php
 $footer_html = '<tr><td style="padding:20px 40px;background-color:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">'
     /* translators: %s: plugin name */
-    . '<p style="margin:0;font-size:12px;color:#9ca3af;">' . sprintf( esc_html__( 'Powered by %s', 'changelog-tracker' ), '<strong>AI Changelog Summary</strong>' ) . '</p>'
+    . '<p style="margin:0;font-size:12px;color:#9ca3af;">' . sprintf( esc_html__( 'Powered by %s', 'changelog-tracker' ), '<strong>Changelog Tracker</strong>' ) . '</p>'
     . '<p style="margin:6px 0 0;font-size:11px;color:#d1d5db;">' . esc_html__( 'To stop receiving these emails, deactivate the plugin or change the notification email in settings.', 'changelog-tracker' ) . '</p>'
     . '</td></tr>';
 echo wp_kses_post( $footer_html );
