@@ -189,6 +189,16 @@ jQuery(document).ready(function ($) {
         });
     });
 
+    /* ───────────── Password / API key visibility toggle ───────────── */
+
+    $(document).on('click', '.aics-pw-toggle', function () {
+        var input = $(this).closest('.aics-pw-wrap').find('input');
+        var isPassword = input.attr('type') === 'password';
+        input.attr('type', isPassword ? 'text' : 'password');
+        $(this).find('.aics-eye-show').toggle(!isPassword);
+        $(this).find('.aics-eye-hide').toggle(isPassword);
+    });
+
     /* ───────────── Auto Detect Changelog URL ───────────── */
 
     var urlContainer = $('#changelog-urls-container');

@@ -318,13 +318,20 @@ class AIChangelogSummary {
 			$display = ( $provider === $current ) ? 'flex' : 'none';
 			?>
 			<div class="aics-api-key-row" data-provider="<?php echo esc_attr( $provider ); ?>" style="display:<?php echo esc_attr( $display ); ?>;">
-				<input
-					type="password"
-					name="<?php echo esc_attr( $meta['option'] ); ?>"
-					value="<?php echo esc_attr( $value ); ?>"
-					class="regular-text"
-					placeholder="<?php echo esc_attr( $meta['label'] ); ?>"
-				>
+				<span class="aics-pw-wrap">
+					<input
+						type="password"
+						name="<?php echo esc_attr( $meta['option'] ); ?>"
+						value="<?php echo esc_attr( $value ); ?>"
+						class="regular-text"
+						placeholder="<?php echo esc_attr( $meta['label'] ); ?>"
+						autocomplete="new-password"
+					>
+					<button type="button" class="aics-pw-toggle" aria-label="<?php esc_attr_e( 'Toggle visibility', 'changelog-tracker' ); ?>">
+						<svg class="aics-eye-show" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3C5 3 1.73 7.11 1.05 9.77a1 1 0 0 0 0 .46C1.73 12.89 5 17 10 17s8.27-4.11 8.95-6.77a1 1 0 0 0 0-.46C18.27 7.11 15 3 10 3zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm0-6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+						<svg class="aics-eye-hide" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style="display:none"><path d="M2.22 2.22a.75.75 0 0 0-1.06 1.06l1.55 1.55C1.3 6.13.42 7.96.05 9.77a1 1 0 0 0 0 .46C.73 12.89 4 17 9 17c1.5 0 2.9-.4 4.1-1.07l2.68 2.68a.75.75 0 1 0 1.06-1.06L2.22 2.22zM9 13a3 3 0 0 1-2.83-4l4.83 4.83A3 3 0 0 1 9 13zm1-9c4.43 0 7.5 3.64 8.27 6.23a1 1 0 0 1 0 .54c-.35 1.3-1.1 2.75-2.24 3.94L5.3 3A8.6 8.6 0 0 1 10 4z"/></svg>
+					</button>
+				</span>
 				<a href="<?php echo esc_url( $meta['link'] ); ?>" target="_blank" rel="noopener noreferrer">
 					<?php esc_html_e( 'Get key', 'changelog-tracker' ); ?> &rarr;
 				</a>
@@ -448,7 +455,13 @@ class AIChangelogSummary {
 	public function render_smtp_password_field() {
 		$value = get_option( 'aics_smtp_password', '' );
 		?>
-		<input type="password" name="aics_smtp_password" value="<?php echo esc_attr( $value ); ?>" class="regular-text" autocomplete="new-password">
+		<span class="aics-pw-wrap">
+			<input type="password" name="aics_smtp_password" id="aics_smtp_password" value="<?php echo esc_attr( $value ); ?>" class="regular-text" autocomplete="new-password">
+			<button type="button" class="aics-pw-toggle" aria-label="<?php esc_attr_e( 'Toggle visibility', 'changelog-tracker' ); ?>">
+				<svg class="aics-eye-show" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3C5 3 1.73 7.11 1.05 9.77a1 1 0 0 0 0 .46C1.73 12.89 5 17 10 17s8.27-4.11 8.95-6.77a1 1 0 0 0 0-.46C18.27 7.11 15 3 10 3zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm0-6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+				<svg class="aics-eye-hide" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style="display:none"><path d="M2.22 2.22a.75.75 0 0 0-1.06 1.06l1.55 1.55C1.3 6.13.42 7.96.05 9.77a1 1 0 0 0 0 .46C.73 12.89 4 17 9 17c1.5 0 2.9-.4 4.1-1.07l2.68 2.68a.75.75 0 1 0 1.06-1.06L2.22 2.22zM9 13a3 3 0 0 1-2.83-4l4.83 4.83A3 3 0 0 1 9 13zm1-9c4.43 0 7.5 3.64 8.27 6.23a1 1 0 0 1 0 .54c-.35 1.3-1.1 2.75-2.24 3.94L5.3 3A8.6 8.6 0 0 1 10 4z"/></svg>
+			</button>
+		</span>
 		<p class="description"><?php esc_html_e( 'For Gmail, use an App Password (not your account password). Two-factor authentication must be enabled.', 'changelog-tracker' ); ?></p>
 		<?php
 	}
