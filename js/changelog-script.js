@@ -189,25 +189,9 @@ jQuery(document).ready(function ($) {
         });
     });
 
-    /* ───────────── Dynamic URL Fields (Add/Remove) ───────────── */
+    /* ───────────── Auto Detect Changelog URL ───────────── */
 
     var urlContainer = $('#changelog-urls-container');
-    if (urlContainer.length) {
-        $('#aics-add-url').on('click', function () {
-            var count = urlContainer.find('input[type="url"]').length;
-            var html = '<div class="aics-url-row" style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">' +
-                '<input type="url" name="changelog_urls[' + count + ']" value="" class="regular-text" placeholder="Changelog URL #' + (count + 1) + '">' +
-                '<button type="button" class="button button-small aics-remove-url" style="color:#b91c1c;">&times;</button>' +
-                '</div>';
-            urlContainer.append(html);
-        });
-
-        $(document).on('click', '.aics-remove-url', function () {
-            $(this).closest('.aics-url-row').remove();
-        });
-    }
-
-    /* ───────────── Auto Detect Changelog URL ───────────── */
 
     $('#aics-detect-url').on('click', function () {
         var btn    = $(this);
@@ -232,15 +216,24 @@ jQuery(document).ready(function ($) {
             },
             success: function (response) {
                 if (response.success && response.data.urls) {
-                    response.data.urls.forEach(function (url) {
-                        var count = urlContainer.find('input[type="url"]').length;
-                        var html = '<div class="aics-url-row" style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">' +
-                            '<input type="url" name="changelog_urls[' + count + ']" value="' + url + '" class="regular-text">' +
-                            '<button type="button" class="button button-small aics-remove-url" style="color:#b91c1c;">&times;</button>' +
-                            '</div>';
-                        urlContainer.append(html);
+                    // Fill empty fields first, then overwrite from the start.
+                    var inputs = urlContainer.find('input[type="url"]');
+                    var filled = 0;
+                    // Try empty slots first.
+                    inputs.each(function () {
+                        if (filled >= response.data.urls.length) { return false; }
+                        if ($(this).val() === '') {
+                            $(this).val(response.data.urls[filled++]);
+                        }
                     });
-                    result.html('<span style="color:green;">' + response.data.message + ' Added to the list.</span>');
+                    // Fill remaining detected URLs into slots from the top.
+                    if (filled < response.data.urls.length) {
+                        inputs.each(function (i) {
+                            if (filled >= response.data.urls.length) { return false; }
+                            $(this).val(response.data.urls[filled++]);
+                        });
+                    }
+                    result.html('<span style="color:green;">' + filled + ' URL(s) filled in.</span>');
                     $('#aics-detect-domain').val('');
                 } else {
                     result.html('<span style="color:#b91c1c;">' + (response.data ? response.data.message : 'No changelogs found.') + '</span>');

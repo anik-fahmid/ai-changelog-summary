@@ -344,13 +344,10 @@ class AIChangelogSummary {
 	}
 
 	public function render_urls_field() {
-		$urls  = get_option( 'changelog_urls', [] );
-		$count = min( max( $this->default_url_count, count( $urls ) ), $this->max_url_count );
-		$urls  = array_pad( array_slice( $urls, 0, $this->max_url_count ), $count, '' );
-		$at_limit = ( $count >= $this->max_url_count );
+		$urls = array_pad( array_slice( (array) get_option( 'changelog_urls', [] ), 0, $this->max_url_count ), $this->default_url_count, '' );
 		?>
-		<div id="changelog-urls-container" data-max="<?php echo esc_attr( $this->max_url_count ); ?>">
-			<?php for ( $i = 0; $i < $count; $i++ ) : ?>
+		<div id="changelog-urls-container">
+			<?php for ( $i = 0; $i < $this->default_url_count; $i++ ) : ?>
 				<div class="aics-url-row">
 					<input
 						type="url"
@@ -360,24 +357,17 @@ class AIChangelogSummary {
 						<?php /* translators: %d: URL number */ ?>
 						placeholder="<?php echo esc_attr( sprintf( __( 'Changelog URL #%d', 'changelog-tracker' ), $i + 1 ) ); ?>"
 					>
-					<?php if ( $i >= $this->default_url_count ) : ?>
-						<button type="button" class="button button-small aics-remove-url">&times;</button>
-					<?php endif; ?>
 				</div>
 			<?php endfor; ?>
 		</div>
 		<div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-			<button type="button" id="aics-add-url" class="button button-small">
-				<?php esc_html_e( '+ Add URL', 'changelog-tracker' ); ?>
-			</button>
-			<span style="color:#999;">|</span>
 			<input type="url" id="aics-detect-domain" class="regular-text" placeholder="<?php esc_attr_e( 'Enter domain to auto-detect changelog URL', 'changelog-tracker' ); ?>" style="max-width:300px;">
 			<button type="button" id="aics-detect-url" class="button button-secondary">
 				<?php esc_html_e( 'Auto Detect', 'changelog-tracker' ); ?>
 			</button>
 			<span id="aics-detect-result" style="font-size:13px;"></span>
 		</div>
-		<p class="description"><?php esc_html_e( 'Add URLs manually or use Auto Detect to find changelog pages on a domain.', 'changelog-tracker' ); ?></p>
+		<p class="description"><?php esc_html_e( 'Enter up to 4 changelog URLs, or use Auto Detect to find them automatically.', 'changelog-tracker' ); ?></p>
 		<?php
 	}
 
