@@ -189,6 +189,25 @@ jQuery(document).ready(function ($) {
         });
     });
 
+    /* ───────────── From Email vs SMTP username mismatch warning ───────────── */
+
+    function checkFromSmtpMismatch() {
+        var smtpEnabled = $('#aics-smtp-enabled').is(':checked');
+        var fromEmail   = $('#aics_email_from_address').val().trim();
+        var smtpUser    = $('#aics_smtp_username').val().trim();
+        var notice      = $('#aics-from-smtp-notice');
+
+        if (smtpEnabled && fromEmail && smtpUser && fromEmail !== smtpUser) {
+            notice.show();
+        } else {
+            notice.hide();
+        }
+    }
+
+    $('#aics_email_from_address, #aics_smtp_username').on('input', checkFromSmtpMismatch);
+    $('#aics-smtp-enabled').on('change', checkFromSmtpMismatch);
+    checkFromSmtpMismatch();
+
     /* ───────────── Password / API key visibility toggle ───────────── */
 
     $(document).on('click', '.aics-pw-toggle', function () {

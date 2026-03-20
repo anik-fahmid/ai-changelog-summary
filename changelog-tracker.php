@@ -397,8 +397,13 @@ class AIChangelogSummary {
 	public function render_from_address_field() {
 		$value = get_option( 'aics_email_from_address', '' );
 		?>
-		<input type="email" name="aics_email_from_address" value="<?php echo esc_attr( $value ); ?>" class="regular-text" placeholder="<?php echo esc_attr( get_option( 'admin_email' ) ); ?>">
-		<p class="description"><?php esc_html_e( 'Sender email address. Leave empty to use WordPress default.', 'changelog-tracker' ); ?></p>
+		<input type="email" name="aics_email_from_address" id="aics_email_from_address" value="<?php echo esc_attr( $value ); ?>" class="regular-text" placeholder="<?php echo esc_attr( get_option( 'admin_email' ) ); ?>">
+		<p class="description">
+			<?php esc_html_e( 'Sender email address. Leave empty to use WordPress default.', 'changelog-tracker' ); ?>
+			<strong id="aics-from-smtp-notice" style="color:#b91c1c;display:none;">
+				<?php esc_html_e( 'When using SMTP, this must match your SMTP username or the email will be rejected.', 'changelog-tracker' ); ?>
+			</strong>
+		</p>
 		<?php
 	}
 
@@ -448,7 +453,7 @@ class AIChangelogSummary {
 	public function render_smtp_username_field() {
 		$value = get_option( 'aics_smtp_username', '' );
 		?>
-		<input type="text" name="aics_smtp_username" value="<?php echo esc_attr( $value ); ?>" class="regular-text" autocomplete="off" placeholder="<?php esc_attr_e( 'your@email.com', 'changelog-tracker' ); ?>">
+		<input type="text" name="aics_smtp_username" id="aics_smtp_username" value="<?php echo esc_attr( $value ); ?>" class="regular-text" autocomplete="off" placeholder="<?php esc_attr_e( 'your@email.com', 'changelog-tracker' ); ?>">
 		<?php
 	}
 
@@ -994,6 +999,15 @@ class AIChangelogSummary {
 		$phpmailer->SMTPAuth   = ! empty( $username );
 		$phpmailer->Username   = sanitize_text_field( $username );
 		$phpmailer->Password   = $password;
+
+		// Most SMTP providers (Gmail, etc.) require From to match the authenticated account.
+		// If From Email differs from SMTP username, override it to prevent auth rejection.
+		if ( ! empty( $username ) && $phpmailer->From !== sanitize_text_field( $username ) ) {
+			$from_address = get_option( 'aics_email_from_address', '' );
+			if ( empty( $from_address ) || $from_address !== $username ) {
+				$phpmailer->From = sanitize_text_field( $username );
+			}
+		}
 
 		if ( 'ssl' === $encryption ) {
 			$phpmailer->SMTPSecure = 'ssl';
