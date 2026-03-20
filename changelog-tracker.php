@@ -1001,6 +1001,7 @@ class AIChangelogSummary {
 		$phpmailer->SMTPAuth   = ! empty( $username );
 		$phpmailer->Username   = sanitize_text_field( $username );
 		$phpmailer->Password   = $password;
+		$phpmailer->Timeout    = 15; // Fail fast instead of hanging for 300s.
 
 		// Most SMTP providers (Gmail, etc.) require From to match the authenticated account.
 		// If From Email differs from SMTP username, override it to prevent auth rejection.
@@ -1028,6 +1029,9 @@ class AIChangelogSummary {
 	/* ───────────────────────── AJAX: Test Email ──────────────── */
 
 	public function test_wp_mail() {
+		set_time_limit( 0 );
+		ignore_user_abort( true );
+
 		check_ajax_referer( 'aics_nonce', 'security' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
