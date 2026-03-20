@@ -741,7 +741,15 @@ class AIChangelogSummary {
 	 * @param bool   $force Bypass cache.
 	 * @return array
 	 */
-	public function process_changelog( $url, $force = false ) {
+	/**
+	 * @param bool $force      Skip 30-min cache and always fetch fresh.
+	 * @param bool $store      Persist hash/summary after processing.
+	 *                         Defaults to true only when not force (preview/test).
+	 */
+	public function process_changelog( $url, $force = false, $store = null ) {
+		// Derive default: preview/force-fetch = don't store; scheduled = store.
+		$should_store = is_null( $store ) ? ! $force : $store;
+
 		$stored   = get_option( 'changelog_summaries', [] );
 		$cached   = isset( $stored[ $url ] ) ? $stored[ $url ] : null;
 		$provider = get_option( 'aics_ai_provider', 'gemini' );
@@ -797,9 +805,7 @@ class AIChangelogSummary {
 			];
 		}
 
-		// Only persist hash/summary for scheduled runs.
-		// Force-fetch is a manual test and must not affect scheduled change detection.
-		if ( ! $force ) {
+		if ( $should_store ) {
 			$this->store_changelog_summary( $url, $ai_result['summary'], $content_hash );
 		}
 
@@ -1055,7 +1061,9 @@ class AIChangelogSummary {
 				continue;
 			}
 
-			$result = $this->process_changelog( $url, true );
+			// force=true: always fetch fresh (bypass 30-min cache).
+			// store=true: persist hash so next run detects real changes only.
+			$result = $this->process_changelog( $url, true, true );
 
 			if ( $result['success'] ) {
 				if ( $result['changed'] ) {
