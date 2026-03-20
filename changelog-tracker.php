@@ -138,8 +138,8 @@ class AIChangelogSummary {
 
 	public function add_plugin_page() {
 		add_options_page(
-			__( 'AI Changelog Summary', 'changelog-tracker' ),
-			__( 'AI Changelog Summary', 'changelog-tracker' ),
+			__( 'Changelog Tracker', 'changelog-tracker' ),
+			__( 'Changelog Tracker', 'changelog-tracker' ),
 			'manage_options',
 			'changelog-tracker',
 			[ $this, 'render_settings_page' ]
@@ -650,7 +650,7 @@ class AIChangelogSummary {
 	/* ───────────────────────── Assets ─────────────────────────── */
 
 	public function enqueue_scripts( $hook ) {
-		if ( 'settings_page_ai-changelog-summary' === $hook ) {
+		if ( 'settings_page_changelog-tracker' === $hook ) {
 			wp_enqueue_style( 'aics-admin', AICS_URL . 'css/admin.css', [], AICS_VERSION );
 			wp_enqueue_script( 'aics-admin', AICS_URL . 'js/changelog-script.js', [ 'jquery' ], AICS_VERSION, true );
 			wp_localize_script( 'aics-admin', 'AICS', [
@@ -1043,7 +1043,7 @@ class AIChangelogSummary {
 				sprintf(
 					/* translators: %s: settings page URL */
 					__( 'No changelog summaries yet. <a href="%s">Configure the plugin</a> to get started.', 'changelog-tracker' ),
-					esc_url( admin_url( 'options-general.php?page=ai-changelog-summary' ) )
+					esc_url( admin_url( 'options-general.php?page=changelog-tracker' ) )
 				)
 			) . '</p>';
 			return;
@@ -1069,7 +1069,7 @@ class AIChangelogSummary {
 		?>
 		<div style="margin-top:12px;display:flex;gap:8px;">
 			<button id="aics-widget-refresh" class="button button-small button-primary"><?php esc_html_e( 'Refresh Now', 'changelog-tracker' ); ?></button>
-			<a href="<?php echo esc_url( admin_url( 'options-general.php?page=ai-changelog-summary' ) ); ?>" class="button button-small"><?php esc_html_e( 'View Full Summary', 'changelog-tracker' ); ?></a>
+			<a href="<?php echo esc_url( admin_url( 'options-general.php?page=changelog-tracker' ) ); ?>" class="button button-small"><?php esc_html_e( 'View Full Summary', 'changelog-tracker' ); ?></a>
 		</div>
 		<span id="aics-widget-result" style="display:block;margin-top:6px;font-size:12px;"></span>
 		<?php
