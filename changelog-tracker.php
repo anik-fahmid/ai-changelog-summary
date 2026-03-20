@@ -27,6 +27,7 @@ require_once AICS_PATH . 'includes/class-auto-detect.php';
 class AIChangelogSummary {
 
 	private $default_url_count   = 2;
+	private $max_url_count       = 5;
 	private $general_group       = 'aics-general-settings';
 	private $notifications_group = 'aics-notifications-settings';
 
@@ -344,10 +345,11 @@ class AIChangelogSummary {
 
 	public function render_urls_field() {
 		$urls  = get_option( 'changelog_urls', [] );
-		$count = max( $this->default_url_count, count( $urls ) );
-		$urls  = array_pad( $urls, $count, '' );
+		$count = min( max( $this->default_url_count, count( $urls ) ), $this->max_url_count );
+		$urls  = array_pad( array_slice( $urls, 0, $this->max_url_count ), $count, '' );
+		$at_limit = ( $count >= $this->max_url_count );
 		?>
-		<div id="changelog-urls-container">
+		<div id="changelog-urls-container" data-max="<?php echo esc_attr( $this->max_url_count ); ?>">
 			<?php for ( $i = 0; $i < $count; $i++ ) : ?>
 				<div class="aics-url-row">
 					<input
@@ -365,7 +367,7 @@ class AIChangelogSummary {
 			<?php endfor; ?>
 		</div>
 		<div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-			<button type="button" id="aics-add-url" class="button button-small">
+			<button type="button" id="aics-add-url" class="button button-small"<?php echo $at_limit ? ' disabled' : ''; ?>>
 				<?php esc_html_e( '+ Add URL', 'changelog-tracker' ); ?>
 			</button>
 			<span style="color:#999;">|</span>
@@ -519,7 +521,7 @@ class AIChangelogSummary {
 				$sanitized[] = $url;
 			}
 		}
-		return $sanitized;
+		return array_slice( $sanitized, 0, $this->max_url_count );
 	}
 
 	/* ───────────────────────── Settings Page ──────────────────── */
