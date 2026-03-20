@@ -1,5 +1,5 @@
 === Changelog Tracker ===
-Contributors: fahmidhasananik
+Contributors: anikfahmid
 Tags: changelog, ai, email notifications, release notes, automation
 Requires at least: 5.6
 Tested up to: 6.9
