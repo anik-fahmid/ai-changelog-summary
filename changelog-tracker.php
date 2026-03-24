@@ -3,7 +3,7 @@
 Plugin Name: Changelog Tracker
 Plugin URI: https://fahmidsroadmap.com/changelog-tracker/
 Description: AI-powered changelog tracking and summarization with multi-provider support.
-Version: 2.0
+Version: 1.0
 Author: Fahmid Hasan
 Author URI: https://fahmidsroadmap.com/
 Text Domain: changelog-tracker
@@ -12,14 +12,14 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Requires at least: 5.6
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.0
+Stable tag: 1.0
 */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AICS_VERSION', '2.0' );
+define( 'AICS_VERSION', '1.0' );
 define( 'AICS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'AICS_URL', plugin_dir_url( __FILE__ ) );
 

@@ -3,7 +3,7 @@ Contributors: anikfahmid
 Tags: changelog, ai, email notifications, release notes, automation
 Requires at least: 5.6
 Tested up to: 6.9
-Stable tag: 2.0
+Stable tag: 1.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -95,7 +95,7 @@ Enable 2-Factor Authentication on your Google account, then generate an App Pass
 
 == Changelog ==
 
-= 2.0 =
+= 1.0 =
 * Renamed plugin to Changelog Tracker
 * Added auto-detect changelog URL feature
 * Added SMTP configuration with test button
@@ -109,5 +109,5 @@ Enable 2-Factor Authentication on your Google account, then generate an App Pass
 
 == Upgrade Notice ==
 
-= 2.0 =
+= 1.0 =
 Major update with SMTP support, auto-detect, and improved email reliability. Re-enter your API key after upgrading.
